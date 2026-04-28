@@ -1,0 +1,168 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Arial', sans-serif;
+  background: #000;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.app-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+canvas {
+  display: block;
+}
+
+/* Pantalla de menú */
+.menu-screen {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  text-align: center;
+  z-index: 50;
+}
+
+.menu-screen h1 {
+  font-family: 'Arial', sans-serif;
+  font-size: clamp(32px, 8vw, 64px);
+  letter-spacing: 4px;
+  text-shadow: 0 0 20px rgba(0, 170, 255, 0.5);
+  margin-bottom: 10px;
+}
+
+.menu-screen .subtitle {
+  font-family: monospace;
+  font-size: clamp(12px, 2vw, 16px);
+  color: #aaa;
+  margin-bottom: 30px;
+}
+
+.menu-screen button {
+  background: linear-gradient(135deg, #0af, #08f);
+  border: none;
+  color: white;
+  padding: 12px 40px;
+  font-size: 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 0.1s, box-shadow 0.2s;
+}
+
+.menu-screen button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 20px rgba(0, 170, 255, 0.4);
+}
+
+.menu-screen button:active {
+  transform: scale(0.98);
+}
+
+/* Pantalla de resumen */
+.summary-screen {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  text-align: center;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 40px 60px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  min-width: 300px;
+}
+
+.summary-screen h2 {
+  font-family: 'Arial', sans-serif;
+  font-size: clamp(24px, 5vw, 40px);
+  margin-bottom: 20px;
+  text-shadow: 0 0 15px rgba(0, 255, 100, 0.4);
+}
+
+.summary-stat {
+  font-family: monospace;
+  font-size: clamp(16px, 2.5vw, 22px);
+  margin: 8px 0;
+  color: #ccc;
+}
+
+.summary-stat span {
+  color: #0af;
+  font-weight: bold;
+}
+
+.summary-screen button {
+  background: linear-gradient(135deg, #0af, #08f);
+  border: none;
+  color: white;
+  padding: 10px 30px;
+  font-size: 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  touch-action: manipulation;
+  margin-top: 20px;
+  transition: transform 0.1s;
+}
+
+.summary-screen button:hover {
+  transform: scale(1.05);
+}
+
+/* Overlay general */
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.interactive {
+  pointer-events: auto;
+}
+
+/* Input range estilizado */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: rgba(255,255,255,0.3);
+  border-radius: 3px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: #0af;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: #0af;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
