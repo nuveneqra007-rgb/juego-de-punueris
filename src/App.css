@@ -12,7 +12,7 @@ html, body, #root {
   background: #000;
   user-select: none;
   -webkit-user-select: none;
-  touch-action: manipulation;
+  touch-action: none;
 }
 
 .app-container {
@@ -165,4 +165,24 @@ input[type="range"]::-moz-range-thumb {
   border-radius: 50%;
   cursor: pointer;
   border: none;
+}
+
+@media (orientation: portrait) and (hover: none) {
+  #root::before {
+    content: "Gira el dispositivo a horizontal";
+    position: fixed;
+    inset: 0;
+    background: black;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    z-index: 9999;
+    text-align: center;
+    padding: 20px;
+  }
+  .app-container {
+    display: none !important;
+  }
 }

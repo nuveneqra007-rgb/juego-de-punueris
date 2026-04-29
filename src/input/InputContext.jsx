@@ -15,7 +15,7 @@ export const InputProvider = ({ children }) => {
     // Sensibilidad global (se actualiza desde settings)
     sensitivity: 1,
     // Métodos para actualizar (se llaman desde los componentes de entrada)
-    addYaw: (delta) => { inputRef.current.deltaYaw += delta; },
+    addYaw: (delta) => { inputRef.current.deltaYaw -= delta; },
     addPitch: (delta) => { inputRef.current.deltaPitch -= delta; }, // invertido por convención
     setFire: (val) => { inputRef.current.fire = val; },
     setAim: (val) => { inputRef.current.aim = val; },
@@ -30,7 +30,7 @@ export const InputProvider = ({ children }) => {
       if (document.pointerLockElement) {
         // Sensibilidad aplicada al movimiento del ratón
         const sens = inputRef.current.sensitivity * 0.002;
-        inputRef.current.deltaYaw += e.movementX * sens;
+        inputRef.current.deltaYaw -= e.movementX * sens;
         inputRef.current.deltaPitch -= e.movementY * sens;
         // Limitar pitch para no dar vueltas completas (se aplica en el frame)
       }
