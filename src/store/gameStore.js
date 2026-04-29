@@ -1,55 +1,113 @@
 import { create } from 'zustand';
+import { loadSettings, saveSettings } from '../utils/storage';
+import { calcHitScore, calcMissPenalty } from '../core/ScoreEngine';
 
-const useGameStore = create((set, get) => ({
-  // Estado de sesión
-  mode: 'gridshot',
-  phase: 'menu', // 'menu' | 'playing' | 'paused' | 'summary'
-  score: 0,
-  shots: 0,
-  hits: 0,
-  combo: 0,
-  maxCombo: 0,
-  timeLeft: 30, // segundos
-  sensitivity: 1,
+// ─── Slice de sesión de juego ─────────────────────────────────────────────────
+const createGameSlice = (set, get) => ({
+  phase:           'menu',   // 'menu' | 'playing' | 'summary'
+  mode:            'gridshot',
+  score:           0,
+  shots:           0,
+  hits:            0,
+  combo:           0,
+  maxCombo:        0,
+  timeLeft:        30,
+  // Stats de reacción
+  totalReactionMs: 0,
+  lastReactionMs:  0,   // para mostrar en HUD inmediatamente
 
-  // Configuración persistente (se sincronizará con localStorage)
-  settings: {
-    sensitivity: 1,
-    fov: 90,
-    volume: 0.7,
-    showFPS: false,
+  startSession: (duration = 30, mode = 'gridshot') =>
+    set({
+      phase: 'playing', mode,
+      score: 0, shots: 0, hits: 0, combo: 0, maxCombo: 0,
+      timeLeft: duration, totalReactionMs: 0, lastReactionMs: 0,
+    }),
+
+  tick: () =>
+    set((s) =>
+      s.timeLeft <= 1
+        ? { phase: 'summary', timeLeft: 0 }
+        : { timeLeft: s.timeLeft - 1 }
+    ),
+
+  /**
+   * Registra un ACIERTO y calcula puntos via ScoreEngine.
+   * @param {number} reactionMs - ms desde spawn hasta disparo
+   */
+  registerHit: (reactionMs) => {
+    const { combo, mode, totalReactionMs, hits } = get();
+    const points = calcHitScore({ reactionMs, combo, mode });
+    set((s) => {
+      const newCombo = s.combo + 1;
+      return {
+        score:           s.score + points,
+        shots:           s.shots + 1,
+        hits:            s.hits + 1,
+        combo:           newCombo,
+        maxCombo:        Math.max(s.maxCombo, newCombo),
+        totalReactionMs: s.totalReactionMs + reactionMs,
+        lastReactionMs:  reactionMs,
+      };
+    });
+    return points; // útil para mostrar +pts flotando
   },
 
-  // Acciones
-  setPhase: (phase) => set({ phase }),
-  addScore: (points) => set((state) => ({ score: state.score + points })),
-  registerShot: (hit) => set((state) => {
-    const newHits = hit ? state.hits + 1 : state.hits;
-    const newCombo = hit ? state.combo + 1 : 0;
-    return {
-      shots: state.shots + 1,
-      hits: newHits,
-      combo: newCombo,
-      maxCombo: Math.max(state.maxCombo, newCombo),
-    };
-  }),
-  tick: () => set((state) => {
-    if (state.timeLeft <= 1) return { phase: 'summary', timeLeft: 0 };
-    return { timeLeft: state.timeLeft - 1 };
-  }),
-  startSession: (duration = 30) => set({
-    phase: 'playing',
-    score: 0,
-    shots: 0,
-    hits: 0,
-    combo: 0,
-    maxCombo: 0,
-    timeLeft: duration,
-  }),
-  updateSensitivity: (val) => set({ sensitivity: val }),
-  updateSettings: (newSettings) => set((state) => ({
-    settings: { ...state.settings, ...newSettings }
-  })),
+  /**
+   * Registra un FALLO, aplica penalización.
+   */
+  registerMiss: () => {
+    const { mode } = get();
+    const penalty = calcMissPenalty(mode);
+    set((s) => ({
+      score:  Math.max(0, s.score + penalty),
+      shots:  s.shots + 1,
+      combo:  0,
+    }));
+  },
+
+  // Compatibilidad retroactiva usada por code antiguo (no eliminar todavía)
+  registerShot: (hit, reactionMs = 500) => {
+    if (hit) get().registerHit(reactionMs);
+    else     get().registerMiss();
+  },
+
+  addScore: (pts) => set((s) => ({ score: s.score + pts })),
+});
+
+// ─── Slice de configuración ───────────────────────────────────────────────────
+const createSettingsSlice = (set) => ({
+  sensitivity: 1,
+  fov:         90,
+  volume:      0.7,
+  showFPS:     false,
+
+  updateSensitivity: (val) => {
+    set({ sensitivity: val });
+    const snap = useGameStore.getState()._getSettingsSnapshot();
+    saveSettings({ ...snap, sensitivity: val });
+  },
+
+  updateSettings: (patch) => {
+    set(patch);
+    const snap = useGameStore.getState()._getSettingsSnapshot();
+    saveSettings({ ...snap, ...patch });
+  },
+
+  _getSettingsSnapshot: () => {
+    const s = useGameStore.getState();
+    return { sensitivity: s.sensitivity, fov: s.fov, volume: s.volume, showFPS: s.showFPS };
+  },
+
+  loadPersistedSettings: () => {
+    const saved = loadSettings();
+    if (saved) set(saved);
+  },
+});
+
+// ─── Store combinado ──────────────────────────────────────────────────────────
+const useGameStore = create((set, get) => ({
+  ...createGameSlice(set, get),
+  ...createSettingsSlice(set, get),
 }));
 
 export default useGameStore;

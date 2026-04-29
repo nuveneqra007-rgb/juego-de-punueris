@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import useGameStore from '../store/gameStore';
 import { useInput } from '../input/InputContext';
-import { saveSettings } from '../utils/storage';
 
 const SettingsPanel = ({ onClose }) => {
-  const { sensitivity, updateSensitivity } = useGameStore();
-  const inputRef = useInput();
+  const sensitivity       = useGameStore((s) => s.sensitivity);
+  const updateSensitivity = useGameStore((s) => s.updateSensitivity);
+  const inputRef          = useInput();
   const [localSens, setLocalSens] = useState(sensitivity);
 
   const handleSensChange = (e) => {
@@ -15,71 +15,84 @@ const SettingsPanel = ({ onClose }) => {
     inputRef.current.setSensitivity(val);
   };
 
-  const handleClose = () => {
-    saveSettings({ sensitivity: localSens });
+  const handleClose = useCallback(() => {
+    if (document.pointerLockElement) document.exitPointerLock();
     onClose();
-  };
+  }, [onClose]);
 
-  // Salir con Escape
   useEffect(() => {
-    const handleKey = (e) => {
-      if (e.key === 'Escape') handleClose();
-    };
+    const handleKey = (e) => { if (e.key === 'Escape') handleClose(); };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [handleClose]);
 
-  // Liberar pointer lock al abrir ajustes
   useEffect(() => {
-    if (document.pointerLockElement) {
-      document.exitPointerLock();
-    }
+    if (document.pointerLockElement) document.exitPointerLock();
   }, []);
 
+  // Descripción visual de la sensibilidad
+  const sensLabel = localSens < 0.8 ? 'BAJA' : localSens < 1.5 ? 'MEDIA' : localSens < 2.2 ? 'ALTA' : 'MUY ALTA';
+
   return (
-    <div style={{
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%',
-      background: 'rgba(0,0,0,0.85)',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: 'white',
-      zIndex: 200,
-    }}>
-      <h2 style={{ fontFamily: 'Arial, sans-serif', marginBottom: 20 }}>Ajustes</h2>
-      <div style={{ margin: '20px 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <label style={{ fontFamily: 'monospace', marginBottom: 8 }}>Sensibilidad: {localSens.toFixed(2)}</label>
-        <input
-          type="range"
-          min="0.2"
-          max="3.0"
-          step="0.01"
-          value={localSens}
-          onChange={handleSensChange}
-          style={{ width: '200px', margin: '10px auto' }}
-        />
+    <div className="settings-overlay">
+      <div className="settings-card">
+        <h2>⚙ AJUSTES</h2>
+
+        <div className="settings-row">
+          <div className="settings-label">
+            SENSIBILIDAD
+            <span>{localSens.toFixed(2)} · {sensLabel}</span>
+          </div>
+          <input
+            type="range" min="0.2" max="3.0" step="0.05"
+            value={localSens}
+            onChange={handleSensChange}
+          />
+          {/* Indicadores de rango */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between',
+            fontFamily: 'var(--font-hud)', fontSize: 10,
+            color: 'var(--c-text-muted)', marginTop: 4, letterSpacing: 1,
+          }}>
+            <span>0.2</span><span>MEDIA 1.5</span><span>3.0</span>
+          </div>
+        </div>
+
+        {/* Toggle FPS */}
+        <div className="settings-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="settings-label" style={{ marginBottom: 0 }}>
+            MOSTRAR FPS
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={useGameStore((s) => s.showFPS)}
+              onChange={(e) => useGameStore.getState().updateSettings({ showFPS: e.target.checked })}
+              style={{ width: 18, height: 18, accentColor: 'var(--c-primary)', cursor: 'pointer' }}
+            />
+          </label>
+        </div>
+
+        {/* Tip de uso */}
+        <div style={{
+          background: 'rgba(0,212,255,0.05)',
+          border: '1px solid var(--c-border)',
+          borderRadius: 'var(--radius-sm)',
+          padding: '8px 12px',
+          fontFamily: 'var(--font-body)',
+          fontSize: 11,
+          color: 'var(--c-text-muted)',
+          lineHeight: 1.5,
+          marginBottom: 20,
+        }}>
+          💡 Para móvil recomendamos entre 0.4 y 1.0.<br/>
+          Para ratón, entre 0.8 y 2.0.
+        </div>
+
+        <button className="btn-primary" onClick={handleClose} style={{ width: '100%' }}>
+          GUARDAR Y CERRAR
+        </button>
       </div>
-      <button
-        onClick={handleClose}
-        style={{
-          background: '#0af',
-          border: 'none',
-          color: 'white',
-          padding: '10px 30px',
-          borderRadius: 5,
-          fontSize: 18,
-          touchAction: 'manipulation',
-          cursor: 'pointer',
-          marginTop: 10,
-        }}
-      >
-        CERRAR
-      </button>
     </div>
   );
 };
