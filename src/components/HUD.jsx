@@ -164,7 +164,7 @@ const HUD = () => {
   return (
     <>
       {/* Barra superior */}
-      <div style={{
+      <div className="hud-top-bar" style={{
         position: 'absolute', top: 0, left: 0, right: 0,
         height: 48,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -177,12 +177,12 @@ const HUD = () => {
         fontFamily: 'var(--font-hud)',
       }}>
         {/* Score */}
-        <div style={{ color: 'var(--c-primary)', fontSize: 'clamp(14px, 2vw, 22px)', fontWeight: 700 }}>
+        <div className="hud-score" style={{ color: 'var(--c-primary)', fontSize: 'clamp(14px, 2vw, 22px)', fontWeight: 700 }}>
           {score.toLocaleString()}
         </div>
 
         {/* Tiempo */}
-        <div style={{
+        <div className="hud-time" style={{
           fontWeight: 700, letterSpacing: 2,
           fontSize: 'clamp(18px, 3vw, 28px)',
           color:      urgent ? 'var(--c-danger)' : '#fff',

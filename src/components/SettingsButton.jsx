@@ -3,6 +3,7 @@ import React from 'react';
 const SettingsButton = ({ onClick }) => (
   <button
     id="settings-btn"
+    className="settings-btn"
     onClick={onClick}
     aria-label="Ajustes"
     style={{
