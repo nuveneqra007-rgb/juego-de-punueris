@@ -16,11 +16,16 @@ const createGameSlice = (set, get) => ({
   totalReactionMs: 0,
   lastReactionMs:  0,   // para mostrar en HUD inmediatamente
 
+  // ── Estado de mecánicas FPS ────────────────────────────────────────────────
+  isADS:     false,    // Aim Down Sights (mira / zoom)
+  isCrouching: false,  // Agachado
+
   startSession: (duration = 30, mode = 'gridshot') =>
     set({
       phase: 'playing', mode,
       score: 0, shots: 0, hits: 0, combo: 0, maxCombo: 0,
       timeLeft: duration, totalReactionMs: 0, lastReactionMs: 0,
+      isADS: false, isCrouching: false,
     }),
 
   tick: () =>
@@ -72,6 +77,12 @@ const createGameSlice = (set, get) => ({
   },
 
   addScore: (pts) => set((s) => ({ score: s.score + pts })),
+
+  // ── Mecánicas FPS ─────────────────────────────────────────────────────────
+  toggleADS:    () => set((s) => ({ isADS: !s.isADS })),
+  setADS:       (v) => set({ isADS: v }),
+  toggleCrouch: () => set((s) => ({ isCrouching: !s.isCrouching })),
+  setCrouch:    (v) => set({ isCrouching: v }),
 });
 
 // ─── Slice de configuración ───────────────────────────────────────────────────

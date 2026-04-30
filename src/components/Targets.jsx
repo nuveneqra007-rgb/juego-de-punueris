@@ -1,13 +1,8 @@
 /**
- * TargetManager — Gestiona todos los targets del juego.
- *
- * FASE 4 cambios:
- * - Pool de meshes para raycasting pre-alocado (elimina new THREE.Mesh() por disparo)
- * - Segmentos de geometría variables por dispositivo (DeviceCapabilities)
- * - MAX_VISIBLE adaptado al dispositivo
- * - FPS throttle en useFrame mediante FRAME_MS
+ * TargetManager — Wall-mounted target system with hit particles.
+ * Uses individual mesh components instead of InstancedMesh for reliability.
  */
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import useGameStore from '../store/gameStore';
@@ -16,31 +11,97 @@ import { shoot } from '../core/Shooter';
 import { gridShotSpawn, flickSpawn, speedSpawn, trackingPosition } from '../core/SpawnPatterns';
 import { GEO_SEGMENTS, MAX_VISIBLE, FRAME_MS, IS_MOBILE } from '../core/DeviceCapabilities';
 
-// ─── Constantes del pool ──────────────────────────────────────────────────────
-const MAX_TARGETS = 20;
-const HIDDEN_Y    = -999;
-
-// Config por modo
+const MAX_TARGETS = 16;
 const MODE_CONFIG = {
-  gridshot: { limit: MAX_VISIBLE,     interval: 700,  scale: 1.0 },
-  flick:    { limit: 1,               interval: 1500, scale: 1.1 },
-  speed:    { limit: MAX_VISIBLE + 1, interval: 450,  scale: 0.75 },
-  tracking: { limit: 0,               interval: 9999, scale: 1.0 },
+  gridshot: { limit: MAX_VISIBLE,     interval: 700 },
+  flick:    { limit: 1,               interval: 1500 },
+  speed:    { limit: MAX_VISIBLE + 1, interval: 450 },
+  tracking: { limit: 0,               interval: 9999 },
 };
 
-// ─── Singletons de módulo (CERO allocations en runtime) ──────────────────────
-const _geo   = new THREE.SphereGeometry(0.3, GEO_SEGMENTS, GEO_SEGMENTS);
-const _mat   = new THREE.MeshStandardMaterial({ color: '#ff2d78', emissive: '#ff2d78', emissiveIntensity: 0.5 });
-const _dummy = new THREE.Object3D();
+// Shared geometry/material (created once)
+const _sphereGeo = new THREE.SphereGeometry(0.5, GEO_SEGMENTS, GEO_SEGMENTS);
 
-// *** FIX FASE 4: Pool de meshes para raycasting — pre-alocado, sin new en runtime ***
-// Antes: new THREE.Mesh(_geo) en cada disparo. Ahora: reutilizamos estos meshes.
-const _rayMeshes = Array.from({ length: MAX_TARGETS }, (_, i) => {
-  const m = new THREE.Mesh(_geo);
-  m.matrixAutoUpdate = false;   // gestionamos la matriz a mano
-  m.userData.poolIndex = i;     // índice fijo para siempre
-  return m;
-});
+// ─── SingleTarget ────────────────────────────────────────────────────────────
+const SingleTarget = ({ position, spawnTime, baseScale }) => {
+  const meshRef = useRef();
+  const ringRef = useRef();
+
+  useFrame(() => {
+    if (!meshRef.current) return;
+    const age = Date.now() - spawnTime;
+    const s = Math.min(baseScale, (age / 120) * baseScale);
+    meshRef.current.scale.setScalar(s);
+    // Pulsing glow ring
+    if (ringRef.current) {
+      const pulse = 1 + Math.sin(age * 0.005) * 0.1;
+      ringRef.current.scale.setScalar(s * pulse * 1.4);
+    }
+  });
+
+  return (
+    <group position={position}>
+      <mesh ref={meshRef} geometry={_sphereGeo} userData={{ isTarget: true }}>
+        <meshBasicMaterial color="#ff2d78" />
+      </mesh>
+      <mesh ref={ringRef} position={[0, 0, 0.05]}>
+        <ringGeometry args={[0.5, 0.65, GEO_SEGMENTS * 2]} />
+        <meshBasicMaterial color="#ff2d78" transparent opacity={0.35} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  );
+};
+
+// ─── HitParticles ────────────────────────────────────────────────────────────
+const HitParticle = ({ x, y, z, vx, vy, vz, born, s }) => {
+  const ref = useRef();
+  useFrame((_, dt) => {
+    if (!ref.current) return;
+    ref.current.position.x += vx * dt;
+    ref.current.position.y += vy * dt;
+    ref.current.position.z += vz * dt;
+    vy -= 6 * dt; // eslint-disable-line
+    const life = 1 - (Date.now() - born) / 500;
+    if (life <= 0) { ref.current.visible = false; return; }
+    ref.current.scale.setScalar(s * life);
+  });
+  return (
+    <mesh ref={ref} position={[x, y, z]}>
+      <sphereGeometry args={[0.05, 4, 4]} />
+      <meshBasicMaterial color="#ff2d78" />
+    </mesh>
+  );
+};
+
+const HitParticles = () => {
+  const [particles, setParticles] = useState([]);
+
+  useEffect(() => {
+    const handle = ({ position } = {}) => {
+      if (!position) return;
+      const newP = [];
+      const count = 6 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < count; i++) {
+        newP.push({
+          id: Date.now() + Math.random(),
+          x: position.x, y: position.y, z: position.z + 0.2,
+          vx: (Math.random() - 0.5) * 5,
+          vy: (Math.random() - 0.5) * 5 + 2,
+          vz: Math.random() * 3,
+          born: Date.now(), s: 0.4 + Math.random() * 0.6,
+        });
+      }
+      setParticles(prev => [...prev.slice(-20), ...newP]);
+      // Clean up after animation
+      setTimeout(() => {
+        setParticles(prev => prev.filter(p => Date.now() - p.born < 600));
+      }, 600);
+    };
+    return InputBus.on('hit-fx', handle);
+  }, []);
+
+  return particles.map(p => <HitParticle key={p.id} {...p} />);
+};
 
 // ─── TargetManager ────────────────────────────────────────────────────────────
 const TargetManager = () => {
@@ -49,183 +110,135 @@ const TargetManager = () => {
   const mode         = useGameStore((s) => s.mode);
   const registerHit  = useGameStore((s) => s.registerHit);
   const registerMiss = useGameStore((s) => s.registerMiss);
-
   const cfg = MODE_CONFIG[mode] ?? MODE_CONFIG.gridshot;
 
-  // ── Pool ref ───────────────────────────────────────────────────────────────
-  const instancedRef = useRef();
-  const pool = useRef({
-    active:    new Array(MAX_TARGETS).fill(false),
-    positions: Array.from({ length: MAX_TARGETS }, () => new THREE.Vector3(0, HIDDEN_Y, 0)),
-    spawnTime: new Array(MAX_TARGETS).fill(0),
-    gridIdx:   new Array(MAX_TARGETS).fill(-1),
-    count:     0,
-  });
-  const lastFrameMs = useRef(0);   // FPS throttle
+  // Targets state: array of { id, position:[x,y,z], spawnTime, gridIdx }
+  const [targets, setTargets] = useState([]);
+  const targetsRef = useRef([]); // mirror for non-React access
+  const meshRefs = useRef({});   // Map<id, meshRef>
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-  const activate = useCallback((slot, pos, gridIdx = -1) => {
-    const p = pool.current;
-    p.active[slot]    = true;
-    p.positions[slot].copy(pos);
-    p.spawnTime[slot] = Date.now();
-    p.gridIdx[slot]   = gridIdx;
-    p.count++;
-  }, []);
+  // Keep ref in sync
+  useEffect(() => { targetsRef.current = targets; }, [targets]);
 
-  const deactivate = useCallback((slot) => {
-    const p = pool.current;
-    p.active[slot] = false;
-    p.positions[slot].set(0, HIDDEN_Y, 0);
-    p.gridIdx[slot] = -1;
-    p.count--;
-  }, []);
+  const baseScale = mode === 'speed' ? 0.75 : 1.0;
 
-  const findFreeSlot = () => pool.current.active.indexOf(false);
-  const getOccupiedGridIndices = () => pool.current.gridIdx.filter((g) => g >= 0);
-
-  const resetPool = useCallback(() => {
-    const p = pool.current;
-    for (let i = 0; i < MAX_TARGETS; i++) {
-      p.active[i]  = false;
-      p.gridIdx[i] = -1;
-      p.positions[i].set(0, HIDDEN_Y, 0);
-    }
-    p.count = 0;
-    if (!instancedRef.current) return;
-    for (let i = 0; i < MAX_TARGETS; i++) {
-      _dummy.position.set(0, HIDDEN_Y, 0);
-      _dummy.scale.setScalar(0);
-      _dummy.updateMatrix();
-      instancedRef.current.setMatrixAt(i, _dummy.matrix);
-    }
-    instancedRef.current.instanceMatrix.needsUpdate = true;
-  }, []);
-
-  // ── Spawn ──────────────────────────────────────────────────────────────────
+  // ── Spawn logic ────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (phase !== 'playing' || cfg.limit === 0) { resetPool(); return; }
+    if (phase !== 'playing' || cfg.limit === 0) {
+      setTargets([]);
+      return;
+    }
 
     const spawnOne = () => {
-      if (pool.current.count >= cfg.limit) return;
-      const slot = findFreeSlot();
-      if (slot === -1) return;
+      setTargets(prev => {
+        if (prev.length >= cfg.limit) return prev;
+        const occupiedGridIdx = prev.map(t => t.gridIdx).filter(g => g >= 0);
+        let newTarget = null;
 
-      if (mode === 'gridshot') {
-        const r = gridShotSpawn(getOccupiedGridIndices());
-        if (r) activate(slot, r.pos, r.gridIdx);
-      } else if (mode === 'flick') {
-        activate(slot, flickSpawn());
-      } else if (mode === 'speed') {
-        const r = speedSpawn(getOccupiedGridIndices());
-        if (r) activate(slot, r.pos, r.gridIdx);
-      } else {
-        activate(slot, new THREE.Vector3(
-          (Math.random() - 0.5) * 10,
-          (Math.random() - 0.5) * 4,
-          -5 - Math.random() * 5
-        ));
-      }
+        if (mode === 'gridshot') {
+          const r = gridShotSpawn(occupiedGridIdx);
+          if (r) newTarget = { id: Date.now() + Math.random(), position: r.pos.toArray(), spawnTime: Date.now(), gridIdx: r.gridIdx };
+        } else if (mode === 'flick') {
+          const p = flickSpawn();
+          newTarget = { id: Date.now() + Math.random(), position: p.toArray(), spawnTime: Date.now(), gridIdx: -1 };
+        } else if (mode === 'speed') {
+          const r = speedSpawn(occupiedGridIdx);
+          if (r) newTarget = { id: Date.now() + Math.random(), position: r.pos.toArray(), spawnTime: Date.now(), gridIdx: r.gridIdx };
+        }
+
+        if (!newTarget) return prev;
+        return [...prev, newTarget];
+      });
     };
 
     spawnOne();
     const id = setInterval(spawnOne, cfg.interval);
     return () => clearInterval(id);
-  }, [phase, mode, cfg.limit, cfg.interval, activate, resetPool]);
+  }, [phase, mode, cfg.limit, cfg.interval]);
 
-  // ── Disparo ────────────────────────────────────────────────────────────────
+  // ── Shoot handler ──────────────────────────────────────────────────────────
   useEffect(() => {
     const handleShoot = () => {
-      if (!instancedRef.current || pool.current.count === 0) {
-        registerMiss();
-        return;
-      }
+      const currentTargets = targetsRef.current;
+      if (currentTargets.length === 0) { registerMiss(); return; }
 
-      // *** FASE 4: Reutilizar _rayMeshes pre-alocados, NO new THREE.Mesh() ***
-      const tempMeshes = [];
-      for (let i = 0; i < MAX_TARGETS; i++) {
-        if (!pool.current.active[i]) continue;
-        const m = _rayMeshes[i];
-        m.position.copy(pool.current.positions[i]);
-        m.userData.spawnTime = pool.current.spawnTime[i];
-        m.updateMatrix();
-        m.updateMatrixWorld(true);
-        tempMeshes.push(m);
-      }
-
-      const hit = shoot(camera, tempMeshes);
-
-      if (hit) {
-        const idx      = hit.object.userData.poolIndex;
-        const reaction = Date.now() - hit.object.userData.spawnTime;
-
-        if (mode === 'gridshot' || mode === 'speed') {
-          const occupied = getOccupiedGridIndices().filter((g) => g !== pool.current.gridIdx[idx]);
-          deactivate(idx);
-          const slot = findFreeSlot();
-          if (slot !== -1) {
-            const fn = mode === 'speed' ? speedSpawn : gridShotSpawn;
-            const r = fn(occupied);
-            if (r) activate(slot, r.pos, r.gridIdx);
-          }
-        } else {
-          deactivate(idx);
+      // Build mesh array for raycasting
+      const meshes = [];
+      for (const t of currentTargets) {
+        const ref = meshRefs.current[t.id];
+        if (ref) {
+          ref.userData.targetId = t.id;
+          ref.userData.spawnTime = t.spawnTime;
+          ref.updateMatrixWorld(true);
+          meshes.push(ref);
         }
+      }
+
+      const hit = shoot(camera, meshes);
+      if (hit) {
+        const targetId = hit.object.userData.targetId;
+        const reaction = Date.now() - hit.object.userData.spawnTime;
+        const hitTarget = currentTargets.find(t => t.id === targetId);
+        const hitPos = hitTarget ? new THREE.Vector3(...hitTarget.position) : null;
+
+        // Remove hit target and spawn replacement for grid modes
+        setTargets(prev => {
+          const remaining = prev.filter(t => t.id !== targetId);
+          if (mode === 'gridshot' || mode === 'speed') {
+            const occ = remaining.map(t => t.gridIdx).filter(g => g >= 0);
+            const fn = mode === 'speed' ? speedSpawn : gridShotSpawn;
+            const r = fn(occ);
+            if (r) {
+              return [...remaining, { id: Date.now() + Math.random(), position: r.pos.toArray(), spawnTime: Date.now(), gridIdx: r.gridIdx }];
+            }
+          }
+          return remaining;
+        });
 
         registerHit(reaction);
         InputBus.emit('hit', { reactionMs: reaction });
+        if (hitPos) InputBus.emit('hit-fx', { position: hitPos });
+        if (IS_MOBILE && navigator.vibrate) navigator.vibrate(35);
       } else {
         registerMiss();
         InputBus.emit('miss');
       }
     };
-
     return InputBus.on('shoot', handleShoot);
-  }, [camera, mode, registerHit, registerMiss, activate, deactivate]);
+  }, [camera, mode, registerHit, registerMiss]);
 
-  // ── Frame loop con FPS throttle ────────────────────────────────────────────
-  useFrame((state, delta) => {
-    if (!instancedRef.current) return;
+  // Register/unregister mesh refs
+  const setMeshRef = useCallback((id, ref) => {
+    if (ref) meshRefs.current[id] = ref;
+    else delete meshRefs.current[id];
+  }, []);
 
-    // *** FASE 4: Limitar FPS en móvil (FRAME_MS = 1000/TARGET_FPS) ***
-    if (IS_MOBILE) {
-      const now = state.clock.elapsedTime * 1000;
-      if (now - lastFrameMs.current < FRAME_MS) return;
-      lastFrameMs.current = now;
-    }
+  if (mode === 'tracking') return (<><TrackingTarget /><HitParticles /></>);
 
-    const baseScale = mode === 'speed' ? 0.75 : 1.0;
-    const now = Date.now();
-
-    for (let i = 0; i < MAX_TARGETS; i++) {
-      _dummy.position.copy(pool.current.positions[i]);
-
-      if (pool.current.active[i]) {
-        const age   = now - pool.current.spawnTime[i];
-        const scale = Math.min(baseScale, (age / 120) * baseScale);
-        _dummy.scale.setScalar(scale);
-        _dummy.rotation.y += delta * 1.5;
-        _dummy.rotation.x += delta * 0.7;
-      } else {
-        _dummy.scale.setScalar(0);
-      }
-
-      _dummy.updateMatrix();
-      instancedRef.current.setMatrixAt(i, _dummy.matrix);
-    }
-
-    instancedRef.current.instanceMatrix.needsUpdate = true;
-  });
-
-  if (mode === 'tracking') return <TrackingTarget />;
-
-  return <instancedMesh ref={instancedRef} args={[_geo, _mat, MAX_TARGETS]} />;
+  return (
+    <>
+      {targets.map(t => (
+        <group key={t.id} position={t.position}>
+          <mesh
+            ref={(ref) => setMeshRef(t.id, ref)}
+            geometry={_sphereGeo}
+          >
+            <meshBasicMaterial color="#ff2d78" />
+          </mesh>
+          <mesh position={[0, 0, 0.05]}>
+            <ringGeometry args={[0.5, 0.7, GEO_SEGMENTS * 2]} />
+            <meshBasicMaterial color="#ff2d78" transparent opacity={0.3} side={THREE.DoubleSide} />
+          </mesh>
+        </group>
+      ))}
+      <HitParticles />
+    </>
+  );
 };
 
-// ─── TrackingTarget ────────────────────────────────────────────────────────────
-const _trackGeo = new THREE.SphereGeometry(0.4, GEO_SEGMENTS, GEO_SEGMENTS);
-const _trackMat = new THREE.MeshStandardMaterial({ color: '#ffb800', emissive: '#ffb800', emissiveIntensity: 0.5 });
-const _trackMesh = new THREE.Mesh(_trackGeo); // singleton para raycasting
+// ─── TrackingTarget ──────────────────────────────────────────────────────────
+const _trackGeo  = new THREE.SphereGeometry(0.5, GEO_SEGMENTS, GEO_SEGMENTS);
+const _trackMesh = new THREE.Mesh(_trackGeo);
 
 const TrackingTarget = () => {
   const { camera } = useThree();
@@ -233,25 +246,26 @@ const TrackingTarget = () => {
   const addScore = useGameStore((s) => s.addScore);
   const meshRef  = useRef();
   const elapsed  = useRef(0);
+  const [isHit, setIsHit] = useState(false);
 
   useFrame((_, delta) => {
     if (phase !== 'playing' || !meshRef.current) return;
     elapsed.current += delta;
-
     const pos = trackingPosition(elapsed.current);
     meshRef.current.position.copy(pos);
-
-    // Actualizar posición del singleton para raycasting
     _trackMesh.position.copy(pos);
     _trackMesh.updateMatrixWorld(true);
-
     const hit = shoot(camera, [_trackMesh]);
-    meshRef.current.material.emissiveIntensity = hit ? 1.2 : 0.5;
+    setIsHit(!!hit);
     if (hit) addScore(1);
   });
 
   if (phase !== 'playing') return null;
-  return <mesh ref={meshRef} geometry={_trackGeo} material={_trackMat} />;
+  return (
+    <mesh ref={meshRef} geometry={_trackGeo}>
+      <meshBasicMaterial color={isHit ? '#ffffff' : '#ffb800'} />
+    </mesh>
+  );
 };
 
 export default TargetManager;

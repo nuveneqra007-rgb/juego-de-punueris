@@ -5,16 +5,17 @@
  */
 
 const _listeners = {
-  shoot: new Set(),
-  hit:   new Set(),
-  miss:  new Set(),
-  look:  new Set(),
+  shoot:  new Set(),
+  hit:    new Set(),
+  miss:   new Set(),
+  look:   new Set(),
+  'hit-fx': new Set(),
 };
 
 export const InputBus = {
   /**
    * Emite un evento con payload opcional.
-   * @param {'shoot'|'hit'|'miss'|'look'} event
+   * @param {string} event
    * @param {any} [payload]
    */
   emit(event, payload) {
@@ -25,7 +26,7 @@ export const InputBus = {
 
   /**
    * Registra un listener. Devuelve una función de cleanup (unsuscribe).
-   * @param {'shoot'|'hit'|'miss'|'look'} event
+   * @param {string} event
    * @param {Function} fn
    * @returns {Function} cleanup
    */

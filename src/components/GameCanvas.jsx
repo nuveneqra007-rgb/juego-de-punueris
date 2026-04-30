@@ -9,9 +9,14 @@ import Scene3D from './Scene3D';
 import Crosshair from './Crosshair';
 import TargetManager from './Targets';
 
+// ─── Camera heights ───────────────────────────────────────────────────────────
+const STAND_HEIGHT  = 1.6;
+const CROUCH_HEIGHT = 0.4;
+const ADS_FOV       = 45;
+const DEFAULT_FOV   = 90;
+const LERP_SPEED    = 8;
+
 // ─── GameLogic ────────────────────────────────────────────────────────────────
-// Componente interno que vive en el contexto R3F.
-// Responsabilidad única: leer input, mover cámara, emitir disparos.
 const GameLogic = () => {
   const inputRef  = useInput();
   const { camera, gl } = useThree();
@@ -20,7 +25,8 @@ const GameLogic = () => {
 
   const lastFire    = useRef(false);
   const lookState   = useRef({ yaw: 0, pitch: 0 });
-  const lastFrameMs = useRef(0);   // FPS throttle timestamp
+  const lastFrameMs = useRef(0);
+  const camY        = useRef(STAND_HEIGHT);
 
   // ── Pointer Lock (solo escritorio) ────────────────────────────────────────
   useEffect(() => {
@@ -50,31 +56,42 @@ const GameLogic = () => {
   }, [phase]);
 
   // ── Loop principal ────────────────────────────────────────────────────────
-  useFrame((state) => {
+  useFrame((state, delta) => {
     if (phase !== 'playing') return;
 
-    // *** FASE 4: FPS throttle en móvil ***
+    // FPS throttle en móvil
     if (IS_MOBILE) {
       const now = state.clock.elapsedTime * 1000;
       if (now - lastFrameMs.current < FRAME_MS) return;
       lastFrameMs.current = now;
     }
 
-    // 1. Consumir deltas
+    // 1. Consumir deltas de look
     lookState.current.yaw   += inputRef.current.deltaYaw;
     lookState.current.pitch += inputRef.current.deltaPitch;
     lookState.current.pitch  = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, lookState.current.pitch));
 
-    // 2. Resetear acumuladores
     inputRef.current.deltaYaw   = 0;
     inputRef.current.deltaPitch = 0;
 
-    // 3. Aplicar a cámara
+    // 2. Aplicar rotación a cámara
     camera.rotation.order = 'YXZ';
     camera.rotation.y = lookState.current.yaw;
     camera.rotation.x = lookState.current.pitch;
 
-    // 4. Disparo semiautomático
+    // 3. ADS (Aim Down Sights) — interpolar FOV
+    const isADS = useGameStore.getState().isADS;
+    const targetFov = isADS ? ADS_FOV : DEFAULT_FOV;
+    camera.fov += (targetFov - camera.fov) * LERP_SPEED * delta;
+    camera.updateProjectionMatrix();
+
+    // 4. Crouch — interpolar altura de cámara
+    const isCrouching = useGameStore.getState().isCrouching;
+    const targetY = isCrouching ? CROUCH_HEIGHT : STAND_HEIGHT;
+    camY.current += (targetY - camY.current) * LERP_SPEED * delta;
+    camera.position.y = camY.current;
+
+    // 5. Disparo semiautomático
     if (inputRef.current.fire) {
       if (!lastFire.current) {
         lastFire.current = true;
@@ -88,8 +105,7 @@ const GameLogic = () => {
   return null;
 };
 
-// ─── Subcomponentes memoizados (nunca cambian, nunca deben re-renderizar) ─────
-// React.memo garantiza que no se re-creen cuando el padre re-renderiza
+// ─── Subcomponentes memoizados ────────────────────────────────────────────────
 const MemoScene    = memo(Scene3D);
 const MemoCrosshair = memo(Crosshair);
 
@@ -97,20 +113,15 @@ const MemoCrosshair = memo(Crosshair);
 const GameCanvas = () => (
   <Canvas
     style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
-    camera={{ fov: 90, near: 0.1, far: 400, position: [0, 0, 0] }}
+    camera={{ fov: DEFAULT_FOV, near: 0.1, far: 400, position: [0, STAND_HEIGHT, 0] }}
     gl={{
       antialias:        !IS_MOBILE,
       powerPreference:  'high-performance',
       stencil:          false,
-      // depth: true por defecto, no hace falta declararlo
     }}
-    // *** FASE 4: "demand" → solo renderiza cuando se llama invalidate() o hay animación.
-    //     Durante el menú/resumen esto ahorra TODA la GPU. Durante playing, useFrame
-    //     siempre solicita el siguiente frame automáticamente mientras esté activo.
-    frameloop="always"   // 'always' porque el canvas siempre está montado y useFrame se encarga
+    frameloop="always"
     onCreated={({ gl }) => {
       gl.setClearColor(new THREE.Color(0x050810));
-      // *** FASE 4: pixelRatio adaptativo desde DeviceCapabilities ***
       gl.setPixelRatio(PIXEL_RATIO);
     }}
   >

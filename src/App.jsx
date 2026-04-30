@@ -14,6 +14,39 @@ const AppInitializer = () => {
   const sensitivity           = useGameStore((s) => s.sensitivity);
   useEffect(() => { loadPersistedSettings(); }, [loadPersistedSettings]);
   useEffect(() => { inputRef.current.setSensitivity(sensitivity); }, [sensitivity, inputRef]);
+
+  // Desktop keyboard: C = crouch, RMB = ADS (handled in InputContext)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'c' || e.key === 'C') useGameStore.getState().setCrouch(true);
+    };
+    const handleKeyUp = (e) => {
+      if (e.key === 'c' || e.key === 'C') useGameStore.getState().setCrouch(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+
+  // Desktop: RMB for ADS
+  useEffect(() => {
+    const handleMouseDown = (e) => {
+      if (e.button === 2) useGameStore.getState().setADS(true);
+    };
+    const handleMouseUp = (e) => {
+      if (e.button === 2) useGameStore.getState().setADS(false);
+    };
+    window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
   return null;
 };
 
@@ -85,7 +118,7 @@ const MenuScreen = () => {
         </button>
 
         <div className="subtitle" style={{ marginTop: 14, marginBottom: 0 }}>
-          Clic / Toca · Arrastra para mirar
+          Clic / Toca · Arrastra para mirar · C agacharse · RMB mira
         </div>
       </div>
     </div>
