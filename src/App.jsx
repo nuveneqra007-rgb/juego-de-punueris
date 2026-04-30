@@ -31,19 +31,24 @@ const AppInitializer = () => {
     };
   }, []);
 
-  // Desktop: RMB for ADS
+  // Desktop: RMB for ADS + prevent context menu
   useEffect(() => {
     const handleMouseDown = (e) => {
-      if (e.button === 2) useGameStore.getState().setADS(true);
+      if (e.button === 2) { e.preventDefault(); useGameStore.getState().setADS(true); }
     };
     const handleMouseUp = (e) => {
       if (e.button === 2) useGameStore.getState().setADS(false);
     };
+    const preventContext = (e) => {
+      if (useGameStore.getState().phase === 'playing') e.preventDefault();
+    };
     window.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('contextmenu', preventContext);
     return () => {
       window.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('contextmenu', preventContext);
     };
   }, []);
 

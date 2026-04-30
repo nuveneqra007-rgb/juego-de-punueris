@@ -151,7 +151,6 @@ const MobileControls = () => {
 
       {/* ── 🔥 FIRE Button (derecha inferior, grande) ── */}
       <div
-        onTouchStart={handleFireStart}
         onPointerDown={handleFireStart}
         style={{
           ...btnBase,
@@ -171,7 +170,6 @@ const MobileControls = () => {
 
       {/* ── 🎯 ADS Button (derecha, encima de fire) — tap toggle ── */}
       <div
-        onTouchStart={handleADSToggle}
         onPointerDown={handleADSToggle}
         style={{
           ...btnBase,
@@ -193,7 +191,6 @@ const MobileControls = () => {
 
       {/* ── 🧎 Crouch Button (izquierda inferior) ── */}
       <div
-        onTouchStart={handleCrouchToggle}
         onPointerDown={handleCrouchToggle}
         style={{
           ...btnBase,
@@ -213,7 +210,6 @@ const MobileControls = () => {
 
       {/* ── Fullscreen Toggle (arriba izquierda) ── */}
       <div
-        onTouchStart={(e) => { e.preventDefault(); toggleFullscreen(); }}
         onPointerDown={(e) => { e.preventDefault(); toggleFullscreen(); }}
         style={{
           ...btnBase,
