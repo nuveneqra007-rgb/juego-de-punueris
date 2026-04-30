@@ -12,6 +12,7 @@ import TargetManager from './Targets';
 const STAND_HEIGHT  = 1.6;
 const CROUCH_HEIGHT = 0.4;
 const ADS_FOV       = 45;
+const ADS_Z         = -6;    // Avance de cámara hacia la pared al usar mira
 const DEFAULT_FOV   = 90;
 const LERP_SPEED    = 8;
 
@@ -26,6 +27,7 @@ const GameLogic = () => {
   const lookState   = useRef({ yaw: 0, pitch: 0 });
   const lastFrameMs = useRef(0);
   const camY        = useRef(STAND_HEIGHT);
+  const camZ        = useRef(0);
 
   // ── Pointer Lock (solo escritorio) ────────────────────────────────────────
   useEffect(() => {
@@ -78,11 +80,14 @@ const GameLogic = () => {
     camera.rotation.y = lookState.current.yaw;
     camera.rotation.x = lookState.current.pitch;
 
-    // 3. ADS (Aim Down Sights) — interpolar FOV
+    // 3. ADS (Aim Down Sights) — interpolar FOV + avanzar cámara
     const isADS = useGameStore.getState().isADS;
     const targetFov = isADS ? ADS_FOV : DEFAULT_FOV;
+    const targetZ   = isADS ? ADS_Z   : 0;
     camera.fov += (targetFov - camera.fov) * LERP_SPEED * delta;
     camera.updateProjectionMatrix();
+    camZ.current += (targetZ - camZ.current) * LERP_SPEED * delta;
+    camera.position.z = camZ.current;
 
     // 4. Crouch — interpolar altura de cámara
     const isCrouching = useGameStore.getState().isCrouching;
