@@ -92,16 +92,14 @@ const MobileControls = () => {
     setTimeout(() => { inputRef.current.setFire(false); }, 50);
   };
 
-  // ── ADS button (hold) ──────────────────────────────────────────────────────
-  const handleADSStart = (e) => {
+  // ── ADS button (toggle on tap) ──────────────────────────────────────────────
+  const [adsActive, setAdsActive] = useState(false);
+  const handleADSToggle = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    useGameStore.getState().setADS(true);
-  };
-  const handleADSEnd = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    useGameStore.getState().setADS(false);
+    const next = !adsActive;
+    setAdsActive(next);
+    useGameStore.getState().setADS(next);
   };
 
   // ── Crouch button (toggle) ─────────────────────────────────────────────────
@@ -171,23 +169,23 @@ const MobileControls = () => {
         🔥
       </div>
 
-      {/* ── 🎯 ADS Button (derecha, encima de fire) ── */}
+      {/* ── 🎯 ADS Button (derecha, encima de fire) — tap toggle ── */}
       <div
-        onTouchStart={handleADSStart}
-        onTouchEnd={handleADSEnd}
-        onPointerDown={handleADSStart}
-        onPointerUp={handleADSEnd}
+        onTouchStart={handleADSToggle}
+        onPointerDown={handleADSToggle}
         style={{
           ...btnBase,
           right: 28,
           bottom: 112,
           width: 52,
           height: 52,
-          background: 'rgba(0, 212, 255, 0.15)',
-          borderColor: 'rgba(0, 212, 255, 0.5)',
-          color: '#00d4ff',
+          background: adsActive ? 'rgba(0, 212, 255, 0.35)' : 'rgba(0, 212, 255, 0.15)',
+          borderColor: adsActive ? '#00d4ff' : 'rgba(0, 212, 255, 0.5)',
+          color: adsActive ? '#fff' : '#00d4ff',
           fontSize: 16,
-          boxShadow: '0 0 14px rgba(0, 212, 255, 0.2)',
+          boxShadow: adsActive
+            ? '0 0 18px rgba(0, 212, 255, 0.5), inset 0 0 10px rgba(0, 212, 255, 0.2)'
+            : '0 0 14px rgba(0, 212, 255, 0.2)',
         }}
       >
         🎯

@@ -329,7 +329,7 @@ input[type="range"]::-moz-range-thumb {
   align-items: center;
   justify-content: center;
   z-index: 200;
-  animation: screenFadeIn 0.25s var(--ease-out) both;
+  animation: settingsFadeIn 0.25s var(--ease-out) both;
 }
 
 .settings-card {
@@ -340,6 +340,7 @@ input[type="range"]::-moz-range-thumb {
   min-width: 300px;
   max-width: 90vw;
   box-shadow: 0 24px 80px rgba(0,0,0,0.5), var(--glow-primary);
+  animation: settingsCardIn 0.3s var(--ease-out) both;
 }
 
 .settings-card h2 {
@@ -373,6 +374,16 @@ input[type="range"]::-moz-range-thumb {
 @keyframes screenFadeIn {
   from { opacity: 0; transform: translate(-50%, calc(-50% + 12px)); }
   to   { opacity: 1; transform: translate(-50%, -50%); }
+}
+
+@keyframes settingsFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes settingsCardIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes summarySlideIn {
