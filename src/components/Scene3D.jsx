@@ -55,7 +55,7 @@ const makeWallGridTexture = () => {
   ctx.fillRect(0, 0, size, size);
 
   // Cuadrícula sutil pero visible
-  ctx.strokeStyle = 'rgba(0,212,255,0.05)';
+  ctx.strokeStyle = 'rgba(0,212,255,0.09)';
   ctx.lineWidth = 1;
   const step = size / 10;
   for (let i = 0; i <= size; i += step) {
@@ -82,7 +82,7 @@ const Scene3D = () => {
   return (
     <>
       {/* Luz ambiente — suficiente para ver todo el escenario */}
-      <ambientLight intensity={0.6} color={0x1a2540} />
+      <ambientLight intensity={0.9} color={0x1a2540} />
 
       {/* Luz direccional apuntando a la pared — ilumina targets */}
       <directionalLight position={[0, 5, 0]} intensity={1.2} color={0xffffff} target-position={[0, 2, -20]} />
@@ -113,7 +113,7 @@ const Scene3D = () => {
       {/* ─── PARED FRONTAL (donde aparecen los targets) ─── */}
       <mesh position={[0, 3, -20]}>
         <planeGeometry args={[40, 12]} />
-        <meshStandardMaterial map={wallGridTex} color={0x070c18} roughness={0.95} metalness={0.1} />
+        <meshStandardMaterial map={wallGridTex} color={0x0e1525} roughness={0.95} metalness={0.1} />
       </mesh>
 
       {/* Borde neón de la pared frontal (marco) */}

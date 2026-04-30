@@ -205,6 +205,31 @@ const HUD = () => {
       <HitMarker />
       <FloatingScore />
       <ComboDisplay />
+
+      {/* ── Crosshair CSS (siempre centrado, independiente del 3D) ── */}
+      <div style={{
+        position: 'absolute', top: '50%', left: '50%',
+        transform: 'translate(-50%, -50%)',
+        pointerEvents: 'none', zIndex: 29,
+      }}>
+        {/* Dot central */}
+        <div style={{
+          position: 'absolute', left: '50%', top: '50%',
+          width: 4, height: 4, borderRadius: '50%',
+          background: '#00d4ff',
+          boxShadow: '0 0 6px rgba(0,212,255,0.8)',
+          transform: 'translate(-50%, -50%)',
+        }} />
+        {/* Línea superior */}
+        <div style={{ position: 'absolute', left: '50%', top: -12, width: 2, height: 8, background: 'rgba(0,212,255,0.6)', transform: 'translateX(-50%)' }} />
+        {/* Línea inferior */}
+        <div style={{ position: 'absolute', left: '50%', bottom: -12, width: 2, height: 8, background: 'rgba(0,212,255,0.6)', transform: 'translateX(-50%)' }} />
+        {/* Línea izquierda */}
+        <div style={{ position: 'absolute', top: '50%', left: -12, width: 8, height: 2, background: 'rgba(0,212,255,0.6)', transform: 'translateY(-50%)' }} />
+        {/* Línea derecha */}
+        <div style={{ position: 'absolute', top: '50%', right: -12, width: 8, height: 2, background: 'rgba(0,212,255,0.6)', transform: 'translateY(-50%)' }} />
+      </div>
+
       {showFPS && <FPSCounter />}
 
       <style>{`

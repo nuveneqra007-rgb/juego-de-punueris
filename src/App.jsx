@@ -50,6 +50,32 @@ const AppInitializer = () => {
   return null;
 };
 
+// ─── ExitButton (volver al menú durante partida) ─────────────────────────────
+const ExitButton = () => (
+  <button
+    onClick={() => {
+      if (document.pointerLockElement) document.exitPointerLock();
+      if (document.fullscreenElement) document.exitFullscreen?.();
+      useGameStore.setState({ phase: 'menu', isADS: false, isCrouching: false });
+    }}
+    style={{
+      position: 'absolute', top: 56, left: 12,
+      width: 38, height: 38, borderRadius: 8,
+      background: 'rgba(11,15,26,0.75)',
+      border: '1px solid rgba(255,68,68,0.35)',
+      color: 'rgba(255,68,68,0.85)',
+      fontSize: 18, fontWeight: 700, lineHeight: 1,
+      cursor: 'pointer', zIndex: 100,
+      touchAction: 'manipulation',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+      transition: 'border-color 0.2s, color 0.2s',
+    }}
+    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(255,68,68,0.7)'; e.currentTarget.style.color = '#ff4444'; }}
+    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,68,68,0.35)'; e.currentTarget.style.color = 'rgba(255,68,68,0.85)'; }}
+  >✕</button>
+);
+
 // ─── Datos de modos ───────────────────────────────────────────────────────────
 const MODES = [
   { id: 'gridshot', label: 'GRIDSHOT', desc: 'Grid 3×3 · Inmediato al matar', color: '#00d4ff', icon: '⊞' },
@@ -219,6 +245,7 @@ const App = () => {
         <GameCanvas />
         {phase === 'playing' && <HUD />}
         {phase === 'playing' && <MobileControls />}
+        {phase === 'playing' && <ExitButton />}
         <SettingsButton onClick={() => setShowSettings(true)} />
         {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
         {phase === 'menu'    && <MenuScreen />}

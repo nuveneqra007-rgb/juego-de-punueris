@@ -7,6 +7,7 @@ const MobileControls = () => {
   const touchStartRef = useRef(null);
   const hasMovedRef = useRef(false);
   const [visible, setVisible] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Detectar si es un dispositivo táctil
   useEffect(() => {
@@ -14,15 +15,31 @@ const MobileControls = () => {
     setVisible(isTouchDevice);
   }, []);
 
-  // ── Fullscreen API ─────────────────────────────────────────────────────────
-  const requestFullscreen = useCallback(() => {
-    const el = document.documentElement;
-    if (el.requestFullscreen) el.requestFullscreen();
-    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-    else if (el.msRequestFullscreen) el.msRequestFullscreen();
+  // ── Fullscreen state listener ──────────────────────────────────────────────
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    document.addEventListener('webkitfullscreenchange', handler);
+    return () => {
+      document.removeEventListener('fullscreenchange', handler);
+      document.removeEventListener('webkitfullscreenchange', handler);
+    };
   }, []);
 
-  // ── Touch look (zona izquierda de la pantalla) ─────────────────────────────
+  // ── Fullscreen Toggle (entrar Y salir) ─────────────────────────────────────
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      if (document.exitFullscreen) document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    } else {
+      const el = document.documentElement;
+      if (el.requestFullscreen) el.requestFullscreen();
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+      else if (el.msRequestFullscreen) el.msRequestFullscreen();
+    }
+  }, []);
+
+  // ── Touch look (zona de la pantalla) ───────────────────────────────────────
   const handlePointerDown = (e) => {
     e.preventDefault();
     touchStartRef.current = {
@@ -39,7 +56,7 @@ const MobileControls = () => {
     if (touchStartRef.current && touchStartRef.current.id === e.pointerId) {
       const deltaX = e.clientX - touchStartRef.current.x;
       const deltaY = e.clientY - touchStartRef.current.y;
-      
+
       if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
         hasMovedRef.current = true;
         const sens = inputRef.current.sensitivity * 0.005;
@@ -55,19 +72,19 @@ const MobileControls = () => {
     if (touchStartRef.current && touchStartRef.current.id === e.pointerId) {
       const duration = Date.now() - touchStartRef.current.time;
       const isTap = !hasMovedRef.current && duration < 300;
-      
+
       if (isTap) {
         inputRef.current.setFire(true);
         setTimeout(() => { inputRef.current.setFire(false); }, 50);
       }
-      
+
       try { e.target.releasePointerCapture(e.pointerId); } catch {}
       touchStartRef.current = null;
       hasMovedRef.current = false;
     }
   };
 
-  // ── Fire button handlers ───────────────────────────────────────────────────
+  // ── Fire button ────────────────────────────────────────────────────────────
   const handleFireStart = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -75,7 +92,7 @@ const MobileControls = () => {
     setTimeout(() => { inputRef.current.setFire(false); }, 50);
   };
 
-  // ── ADS button handlers ────────────────────────────────────────────────────
+  // ── ADS button (hold) ──────────────────────────────────────────────────────
   const handleADSStart = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -87,7 +104,7 @@ const MobileControls = () => {
     useGameStore.getState().setADS(false);
   };
 
-  // ── Crouch button handlers ─────────────────────────────────────────────────
+  // ── Crouch button (toggle) ─────────────────────────────────────────────────
   const handleCrouchToggle = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -196,10 +213,10 @@ const MobileControls = () => {
         🧎
       </div>
 
-      {/* ── Fullscreen Button (arriba izquierda) ── */}
+      {/* ── Fullscreen Toggle (arriba izquierda) ── */}
       <div
-        onTouchStart={(e) => { e.preventDefault(); requestFullscreen(); }}
-        onPointerDown={(e) => { e.preventDefault(); requestFullscreen(); }}
+        onTouchStart={(e) => { e.preventDefault(); toggleFullscreen(); }}
+        onPointerDown={(e) => { e.preventDefault(); toggleFullscreen(); }}
         style={{
           ...btnBase,
           left: 12,
@@ -207,14 +224,14 @@ const MobileControls = () => {
           width: 36,
           height: 36,
           borderRadius: 8,
-          background: 'rgba(11, 15, 26, 0.7)',
-          borderColor: 'rgba(0, 212, 255, 0.25)',
-          color: 'rgba(0, 212, 255, 0.7)',
+          background: isFullscreen ? 'rgba(0, 212, 255, 0.15)' : 'rgba(11, 15, 26, 0.7)',
+          borderColor: isFullscreen ? 'rgba(0, 212, 255, 0.5)' : 'rgba(0, 212, 255, 0.25)',
+          color: isFullscreen ? '#00d4ff' : 'rgba(0, 212, 255, 0.7)',
           fontSize: 14,
-          boxShadow: 'none',
+          boxShadow: isFullscreen ? '0 0 10px rgba(0,212,255,0.2)' : 'none',
         }}
       >
-        ⛶
+        {isFullscreen ? '⛌' : '⛶'}
       </div>
     </>
   );

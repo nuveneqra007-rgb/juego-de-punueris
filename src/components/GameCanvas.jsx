@@ -6,7 +6,6 @@ import useGameStore from '../store/gameStore';
 import { InputBus } from '../core/InputBus';
 import { IS_MOBILE, PIXEL_RATIO, FRAME_MS } from '../core/DeviceCapabilities';
 import Scene3D from './Scene3D';
-import Crosshair from './Crosshair';
 import TargetManager from './Targets';
 
 // ─── Camera heights ───────────────────────────────────────────────────────────
@@ -106,8 +105,7 @@ const GameLogic = () => {
 };
 
 // ─── Subcomponentes memoizados ────────────────────────────────────────────────
-const MemoScene    = memo(Scene3D);
-const MemoCrosshair = memo(Crosshair);
+const MemoScene = memo(Scene3D);
 
 // ─── GameCanvas ───────────────────────────────────────────────────────────────
 const GameCanvas = () => (
@@ -127,7 +125,6 @@ const GameCanvas = () => (
   >
     <GameLogic />
     <MemoScene />
-    <MemoCrosshair />
     <TargetManager />
   </Canvas>
 );
