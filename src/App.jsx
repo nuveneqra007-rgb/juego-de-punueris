@@ -108,7 +108,7 @@ const MenuScreen = () => {
 
       {/* Contenido centrado */}
       <div style={{ position: 'relative', zIndex: 3 }}>
-        <h1>AIM CHAMP</h1>
+        <h1>Aim Trainer</h1>
         <div className="title-line" />
         <div className="subtitle">ENTRENADOR DE PUNTERÍA PRO</div>
 
