@@ -183,27 +183,17 @@ const WeaponViewmodel = () => {
     groupRef.current.updateMatrix();
   });
 
-  if (phase !== 'playing') return null;
-
+  const isPlaying = phase === 'playing';
   const weaponId = weaponSystem.weapon.id;
 
   return (
-    // Adjuntamos el group al espacio de la cámara
-    <group>
-      {/* 
-        Para que el viewmodel esté pegado a la cámara, lo renderizamos como hijo
-        en la jerarquía global pero copiamos la matriz, o lo envolvemos si la cámara 
-        es accesible directamente.
-        La mejor forma en R3F es usar createPortal o simplemente ponerlo dentro del HUD/Camera.
-        En GameCanvas vamos a poner WeaponViewmodel dentro de un componente que ya está pegado a la cámara.
-        O mejor, copiamos el transform de la cámara en cada frame.
-      */}
+    <group visible={isPlaying}>
       <group ref={groupRef}>
         {weaponId === 'ak47' && <AK47Model muzzleRef={muzzleRef} />}
         {weaponId === 'pistol' && <PistolModel muzzleRef={muzzleRef} />}
         {muzzleRef.current && (
           <group position={muzzleRef.current.position}>
-            <MuzzleFlash visible={weaponSystem.muzzleFlash} />
+            <MuzzleFlash visible={isPlaying && weaponSystem.muzzleFlash} />
           </group>
         )}
       </group>
