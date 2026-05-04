@@ -182,7 +182,7 @@ const GameLogic = () => {
 
   return (
     <>
-      {createPortal(<WeaponViewmodel />, camera)}
+      {!IS_MOBILE && createPortal(<WeaponViewmodel />, camera)}
     </>
   );
 };
@@ -223,6 +223,7 @@ const GameCanvas = () => {
         antialias:        !IS_MOBILE,
         powerPreference:  'high-performance',
         stencil:          false,
+        failIfMajorPerformanceCaveat: false,
       }}
       frameloop="always"
       onCreated={({ gl }) => {
@@ -232,14 +233,25 @@ const GameCanvas = () => {
           gl.shadowMap.enabled = true;
           gl.shadowMap.type = THREE.PCFSoftShadowMap;
         }
+        // Recover from WebGL context loss (common on mobile)
+        const canvas = gl.domElement;
+        canvas.addEventListener('webglcontextlost', (e) => {
+          e.preventDefault();
+          console.warn('[AimChamp] WebGL context lost, attempting recovery...');
+        });
+        canvas.addEventListener('webglcontextrestored', () => {
+          console.log('[AimChamp] WebGL context restored');
+          gl.setClearColor(new THREE.Color(0xb8bcc5));
+          gl.setPixelRatio(PIXEL_RATIO);
+        });
       }}
     >
       <FogSetup />
       <GameLogic />
       <MemoScene />
       <TargetManager />
-      <WeaponViewmodel />
-      <VREffects enabled={vrEffects} />
+      {IS_MOBILE && <WeaponViewmodel />}
+      {!IS_MOBILE && vrEffects && <VREffects enabled={true} />}
     </Canvas>
     </>
   );

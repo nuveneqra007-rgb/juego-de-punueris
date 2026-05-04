@@ -148,7 +148,7 @@ const Scene3D = () => {
           CIELO GRADIENTE — dispersión atmosférica simulada
           ═══════════════════════════════════════════════════════════════════ */}
       <mesh scale={[-1, 1, 1]}>
-        <sphereGeometry args={[180, 16, 16]} />
+        <sphereGeometry args={[180, IS_MOBILE ? 8 : 16, IS_MOBILE ? 8 : 16]} />
         <meshBasicMaterial
           map={skyTex}
           side={THREE.BackSide}
@@ -173,9 +173,9 @@ const Scene3D = () => {
         position={[12, 18, 8]}
         intensity={1.8}
         color={0xfff5e6}
-        castShadow={!IS_LOW_END}
-        shadow-mapSize-width={IS_LOW_END ? 512 : 1024}
-        shadow-mapSize-height={IS_LOW_END ? 512 : 1024}
+        castShadow={!IS_LOW_END && !IS_MOBILE}
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
         shadow-camera-far={60}
         shadow-camera-left={-25}
         shadow-camera-right={25}
@@ -191,13 +191,19 @@ const Scene3D = () => {
         color={0xc0d0ff}
       />
 
-      {/* Luces de acento — zona de targets con tono cyan */}
-      <pointLight position={[0, 6, -14]} intensity={2.0} color={0x00d4ff} distance={30} decay={1.5} />
-      <pointLight position={[-10, 4, -18]} intensity={1.5} color={0x00d4ff} distance={25} decay={1.5} />
-      <pointLight position={[10, 4, -18]} intensity={1.5} color={0x00d4ff} distance={25} decay={1.5} />
-
-      {/* Acento magenta sutil desde abajo */}
-      <pointLight position={[0, -1, -16]} intensity={0.6} color={0xff2d78} distance={20} decay={1.5} />
+      {/* Luces de acento — solo desktop (cada pointLight = un render pass extra en mobile) */}
+      {!IS_MOBILE && (
+        <>
+          <pointLight position={[0, 6, -14]} intensity={2.0} color={0x00d4ff} distance={30} decay={1.5} />
+          <pointLight position={[-10, 4, -18]} intensity={1.5} color={0x00d4ff} distance={25} decay={1.5} />
+          <pointLight position={[10, 4, -18]} intensity={1.5} color={0x00d4ff} distance={25} decay={1.5} />
+          <pointLight position={[0, -1, -16]} intensity={0.6} color={0xff2d78} distance={20} decay={1.5} />
+        </>
+      )}
+      {/* Mobile: single accent light for performance */}
+      {IS_MOBILE && (
+        <pointLight position={[0, 5, -14]} intensity={1.5} color={0x00d4ff} distance={30} decay={2} />
+      )}
 
       {/* ═══════════════════════════════════════════════════════════════════
           SUELO GRIS 3D — plano grande con cuadrícula de perspectiva
@@ -228,22 +234,26 @@ const Scene3D = () => {
         <planeGeometry args={[40.2, 0.08]} />
         <meshBasicMaterial color={0x00d4ff} transparent opacity={0.65} />
       </mesh>
-      {/* Glow superior amplio */}
-      <mesh position={[0, 9, -19.96]}>
-        <planeGeometry args={[40.4, 0.5]} />
-        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.06} depthWrite={false} />
-      </mesh>
+      {/* Glow superior amplio — desktop only */}
+      {!IS_MOBILE && (
+        <mesh position={[0, 9, -19.96]}>
+          <planeGeometry args={[40.4, 0.5]} />
+          <meshBasicMaterial color={0x00d4ff} transparent opacity={0.06} depthWrite={false} />
+        </mesh>
+      )}
 
       {/* Borde inferior */}
       <mesh position={[0, -3, -19.95]}>
         <planeGeometry args={[40.2, 0.08]} />
         <meshBasicMaterial color={0x00d4ff} transparent opacity={0.45} />
       </mesh>
-      {/* Glow inferior */}
-      <mesh position={[0, -3, -19.96]}>
-        <planeGeometry args={[40.4, 0.4]} />
-        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.04} depthWrite={false} />
-      </mesh>
+      {/* Glow inferior — desktop only */}
+      {!IS_MOBILE && (
+        <mesh position={[0, -3, -19.96]}>
+          <planeGeometry args={[40.4, 0.4]} />
+          <meshBasicMaterial color={0x00d4ff} transparent opacity={0.04} depthWrite={false} />
+        </mesh>
+      )}
 
       {/* Borde izquierdo */}
       <mesh position={[-20, 3, -19.95]}>
@@ -294,8 +304,8 @@ const Scene3D = () => {
         </group>
       ))}
 
-      {/* Columnas lejanas para perspectiva */}
-      {[-40, -30, 30, 40].map((x) => (
+      {/* Columnas lejanas para perspectiva — desktop only */}
+      {!IS_MOBILE && [-40, -30, 30, 40].map((x) => (
         <mesh key={`far-col-${x}`} position={[x, 0, -35]}>
           <boxGeometry args={[0.5, 4, 0.5]} />
           <meshStandardMaterial color={0x606065} metalness={0.2} roughness={0.8} />
@@ -307,14 +317,18 @@ const Scene3D = () => {
         <planeGeometry args={[0.05, 80]} />
         <meshBasicMaterial color={0x00d4ff} transparent opacity={0.12} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-10, -1.99, -10]}>
-        <planeGeometry args={[0.03, 80]} />
-        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.06} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[10, -1.99, -10]}>
-        <planeGeometry args={[0.03, 80]} />
-        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.06} />
-      </mesh>
+      {!IS_MOBILE && (
+        <>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-10, -1.99, -10]}>
+            <planeGeometry args={[0.03, 80]} />
+            <meshBasicMaterial color={0x00d4ff} transparent opacity={0.06} />
+          </mesh>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[10, -1.99, -10]}>
+            <planeGeometry args={[0.03, 80]} />
+            <meshBasicMaterial color={0x00d4ff} transparent opacity={0.06} />
+          </mesh>
+        </>
+      )}
     </>
   );
 };

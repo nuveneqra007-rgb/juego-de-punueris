@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { weaponSystem } from '../core/WeaponSystem';
 import useGameStore from '../store/gameStore';
+import { IS_MOBILE } from '../core/DeviceCapabilities';
 
 // Materiales pre-instanciados
 const _matBody = new THREE.MeshStandardMaterial({
@@ -116,7 +117,7 @@ const MuzzleFlash = ({ visible }) => {
     <group ref={flashRef} visible={false}>
       <mesh geometry={_flashGeo} material={_flashMat1} />
       <mesh geometry={_flashGeo} material={_flashMat2} rotation={[0, Math.PI / 2, 0]} />
-      {visible && <pointLight color="#ffcc00" intensity={2} distance={5} decay={2} />}
+      {visible && !IS_MOBILE && <pointLight color="#ffcc00" intensity={2} distance={5} decay={2} />}
     </group>
   );
 };
