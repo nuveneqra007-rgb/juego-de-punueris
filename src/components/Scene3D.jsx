@@ -1,73 +1,73 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { IS_LOW_END, IS_MOBILE } from '../core/DeviceCapabilities';
 
-// Materiales pre-instanciados fuera del componente
-const _matFloor = new THREE.MeshStandardMaterial({
-  color:             new THREE.Color(0x080e1a),
-  metalness:         0.3,
-  roughness:         0.9,
-});
-
-const _matWall = new THREE.MeshStandardMaterial({
-  color:    new THREE.Color(0x060b15),
-  roughness: 1,
-});
-
-// Material para la pared frontal con cuadrícula visible
-const _matWallFront = new THREE.MeshStandardMaterial({
-  color:    new THREE.Color(0x070c18),
-  roughness: 0.95,
-  metalness: 0.1,
-});
-
-// Líneas de grid en el suelo via textura procedural
-const makeGridTexture = () => {
-  const size   = 512;
+// ─── Textura procedural: cuadrícula de perspectiva para el suelo gris ───────
+const makeFloorGridTexture = () => {
+  const size = 512;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = '#080e1a';
+  // Base gris
+  ctx.fillStyle = '#6e6e6e';
   ctx.fillRect(0, 0, size, size);
 
-  ctx.strokeStyle = 'rgba(0,212,255,0.07)';
-  ctx.lineWidth = 1;
+  // Cuadrícula principal
+  ctx.strokeStyle = 'rgba(80, 80, 80, 0.7)';
+  ctx.lineWidth = 1.5;
   const step = size / 8;
   for (let i = 0; i <= size; i += step) {
-    ctx.beginPath(); ctx.moveTo(i, 0);   ctx.lineTo(i, size); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, i);   ctx.lineTo(size, i); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(size, i); ctx.stroke();
+  }
+
+  // Sub-cuadrícula fina
+  ctx.strokeStyle = 'rgba(90, 90, 90, 0.35)';
+  ctx.lineWidth = 0.5;
+  const subStep = step / 4;
+  for (let i = 0; i <= size; i += subStep) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(size, i); ctx.stroke();
   }
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(8, 8);
+  tex.repeat.set(16, 16);
+  tex.anisotropy = 4;
   return tex;
 };
 
-// Textura de cuadrícula para la pared frontal (donde aparecen los targets)
-const makeWallGridTexture = () => {
-  const size   = 512;
+// ─── Textura del panel holográfico (rejilla futurista semi-transparente) ─────
+const makeHoloPanelTexture = () => {
+  const size = 512;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = '#070c18';
-  ctx.fillRect(0, 0, size, size);
+  // Fondo transparente (se combinará con material transparent)
+  ctx.clearRect(0, 0, size, size);
 
-  // Cuadrícula sutil pero visible
-  ctx.strokeStyle = 'rgba(0,212,255,0.09)';
+  // Cuadrícula holográfica cyan
+  ctx.strokeStyle = 'rgba(0, 212, 255, 0.12)';
   ctx.lineWidth = 1;
-  const step = size / 10;
+  const step = size / 12;
   for (let i = 0; i <= size; i += step) {
-    ctx.beginPath(); ctx.moveTo(i, 0);   ctx.lineTo(i, size); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, i);   ctx.lineTo(size, i); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(size, i); ctx.stroke();
   }
 
-  // Cruz central más visible
-  ctx.strokeStyle = 'rgba(0,212,255,0.08)';
+  // Cruz central sutil
+  ctx.strokeStyle = 'rgba(0, 212, 255, 0.08)';
   ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(size/2, 0);    ctx.lineTo(size/2, size); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(0, size/2);    ctx.lineTo(size, size/2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(size / 2, 0); ctx.lineTo(size / 2, size); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, size / 2); ctx.lineTo(size, size / 2); ctx.stroke();
+
+  // Borde interior sutil
+  ctx.strokeStyle = 'rgba(0, 212, 255, 0.06)';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(10, 10, size - 20, size - 20);
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
@@ -75,102 +75,250 @@ const makeWallGridTexture = () => {
   return tex;
 };
 
+// ─── Gradient Sky dome ──────────────────────────────────────────────────────
+const makeGradientSkyTexture = () => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 2;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  // Gradiente: más oscuro arriba → más claro en el horizonte
+  const gradient = ctx.createLinearGradient(0, 0, 0, 256);
+  gradient.addColorStop(0, '#8a8e96');   // Parte superior — gris medio
+  gradient.addColorStop(0.3, '#a0a4ac'); // Transición
+  gradient.addColorStop(0.5, '#b8bcc5'); // Horizonte — gris claro
+  gradient.addColorStop(0.7, '#c8ccd5'); // Debajo del horizonte
+  gradient.addColorStop(1, '#b0b4bc');   // Suelo reflejado
+
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 2, 256);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  return tex;
+};
+
+// ─── Blob Shadow material (para low-end en vez de sombras reales) ───────────
+const _blobShadowGeo = new THREE.CircleGeometry(0.6, 12);
+const _blobShadowMat = new THREE.MeshBasicMaterial({
+  color: 0x000000,
+  transparent: true,
+  opacity: 0.15,
+  depthWrite: false,
+});
+
+// ─── Animated holographic panel shimmer ─────────────────────────────────────
+const HoloPanel = ({ panelTex }) => {
+  const matRef = useRef();
+
+  useFrame((state) => {
+    if (!matRef.current) return;
+    // Sutil pulsación de opacidad para efecto holográfico vivo
+    const t = state.clock.elapsedTime;
+    matRef.current.opacity = 0.18 + Math.sin(t * 0.8) * 0.03;
+  });
+
+  return (
+    <mesh position={[0, 3, -20]}>
+      <planeGeometry args={[40, 12]} />
+      <meshStandardMaterial
+        ref={matRef}
+        map={panelTex}
+        color={0x4a8aaa}
+        transparent
+        opacity={0.18}
+        roughness={0.1}
+        metalness={0.6}
+        side={THREE.DoubleSide}
+        depthWrite={false}
+      />
+    </mesh>
+  );
+};
+
 const Scene3D = () => {
-  const gridTex = useMemo(() => makeGridTexture(), []);
-  const wallGridTex = useMemo(() => makeWallGridTexture(), []);
+  const floorTex = useMemo(() => makeFloorGridTexture(), []);
+  const panelTex = useMemo(() => makeHoloPanelTexture(), []);
+  const skyTex = useMemo(() => makeGradientSkyTexture(), []);
 
   return (
     <>
-      {/* Luz ambiente — suficiente para ver todo el escenario */}
-      <ambientLight intensity={0.9} color={0x1a2540} />
-
-      {/* Luz direccional apuntando a la pared — ilumina targets */}
-      <directionalLight position={[0, 5, 0]} intensity={1.2} color={0xffffff} target-position={[0, 2, -20]} />
-
-      {/* Luz puntual central — simula área de juego iluminada */}
-      <pointLight position={[0, 5, -10]} intensity={3.0} color={0x00d4ff} distance={50} decay={1.5} />
-      <pointLight position={[0, 5,  0]} intensity={1.0} color={0x0a2860} distance={30} decay={1.5} />
-
-      {/* Luz de acento magenta desde abajo para iluminar la pared */}
-      <pointLight position={[0, 0, -15]} intensity={1.0} color={0xff2d78} distance={30} decay={1.5} />
-
-      {/* Luces laterales para iluminar los targets en la pared */}
-      <pointLight position={[-10, 3, -16]} intensity={2.0} color={0x00d4ff} distance={30} decay={1.5} />
-      <pointLight position={[ 10, 3, -16]} intensity={2.0} color={0x00d4ff} distance={30} decay={1.5} />
-
-      {/* Suelo */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2, -10]} receiveShadow>
-        <planeGeometry args={[50, 50]} />
-        <meshStandardMaterial map={gridTex} color={0x080e1a} metalness={0.2} roughness={0.9} />
+      {/* ═══════════════════════════════════════════════════════════════════
+          CIELO GRADIENTE — dispersión atmosférica simulada
+          ═══════════════════════════════════════════════════════════════════ */}
+      <mesh scale={[-1, 1, 1]}>
+        <sphereGeometry args={[180, 16, 16]} />
+        <meshBasicMaterial
+          map={skyTex}
+          side={THREE.BackSide}
+          fog={false}
+          depthWrite={false}
+        />
       </mesh>
 
-      {/* Techo */}
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 8, -10]}>
-        <planeGeometry args={[50, 50]} />
-        <primitive object={_matWall} attach="material" />
+      {/* ═══════════════════════════════════════════════════════════════════
+          ILUMINACIÓN — sistema realista con sombras condicionales
+          ═══════════════════════════════════════════════════════════════════ */}
+
+      {/* Luz hemisférica — cielo azulado arriba, gris cálido abajo */}
+      <hemisphereLight
+        skyColor={0x8899bb}
+        groundColor={0x666666}
+        intensity={0.7}
+      />
+
+      {/* Luz direccional principal — simula sol desde arriba-derecha */}
+      <directionalLight
+        position={[12, 18, 8]}
+        intensity={1.8}
+        color={0xfff5e6}
+        castShadow={!IS_LOW_END}
+        shadow-mapSize-width={IS_LOW_END ? 512 : 1024}
+        shadow-mapSize-height={IS_LOW_END ? 512 : 1024}
+        shadow-camera-far={60}
+        shadow-camera-left={-25}
+        shadow-camera-right={25}
+        shadow-camera-top={15}
+        shadow-camera-bottom={-10}
+        shadow-bias={-0.001}
+      />
+
+      {/* Luz de relleno desde la izquierda */}
+      <directionalLight
+        position={[-8, 10, 5]}
+        intensity={0.4}
+        color={0xc0d0ff}
+      />
+
+      {/* Luces de acento — zona de targets con tono cyan */}
+      <pointLight position={[0, 6, -14]} intensity={2.0} color={0x00d4ff} distance={30} decay={1.5} />
+      <pointLight position={[-10, 4, -18]} intensity={1.5} color={0x00d4ff} distance={25} decay={1.5} />
+      <pointLight position={[10, 4, -18]} intensity={1.5} color={0x00d4ff} distance={25} decay={1.5} />
+
+      {/* Acento magenta sutil desde abajo */}
+      <pointLight position={[0, -1, -16]} intensity={0.6} color={0xff2d78} distance={20} decay={1.5} />
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          SUELO GRIS 3D — plano grande con cuadrícula de perspectiva
+          ═══════════════════════════════════════════════════════════════════ */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, -2, -10]}
+        receiveShadow
+      >
+        <planeGeometry args={[200, 200]} />
+        <meshStandardMaterial
+          map={floorTex}
+          color={0x808080}
+          metalness={0.05}
+          roughness={0.85}
+        />
       </mesh>
 
-      {/* ─── PARED FRONTAL (donde aparecen los targets) ─── */}
-      <mesh position={[0, 3, -20]}>
-        <planeGeometry args={[40, 12]} />
-        <meshStandardMaterial map={wallGridTex} color={0x0e1525} roughness={0.95} metalness={0.1} />
-      </mesh>
+      {/* ═══════════════════════════════════════════════════════════════════
+          PANEL HOLOGRÁFICO FLOTANTE — semi-transparente con glow
+          El jugador puede ver el horizonte a través del panel.
+          ═══════════════════════════════════════════════════════════════════ */}
+      <HoloPanel panelTex={panelTex} />
 
-      {/* Borde neón de la pared frontal (marco) */}
-      {/* Borde superior */}
+      {/* ─── Marco brillante del panel (glow borders) ─── */}
+      {/* Borde superior — más brillante */}
       <mesh position={[0, 9, -19.95]}>
-        <planeGeometry args={[40, 0.04]} />
-        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.5} />
+        <planeGeometry args={[40.2, 0.08]} />
+        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.65} />
       </mesh>
+      {/* Glow superior amplio */}
+      <mesh position={[0, 9, -19.96]}>
+        <planeGeometry args={[40.4, 0.5]} />
+        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.06} depthWrite={false} />
+      </mesh>
+
       {/* Borde inferior */}
       <mesh position={[0, -3, -19.95]}>
-        <planeGeometry args={[40, 0.04]} />
-        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.3} />
+        <planeGeometry args={[40.2, 0.08]} />
+        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.45} />
       </mesh>
+      {/* Glow inferior */}
+      <mesh position={[0, -3, -19.96]}>
+        <planeGeometry args={[40.4, 0.4]} />
+        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.04} depthWrite={false} />
+      </mesh>
+
       {/* Borde izquierdo */}
       <mesh position={[-20, 3, -19.95]}>
-        <planeGeometry args={[0.04, 12]} />
-        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.4} />
+        <planeGeometry args={[0.08, 12.2]} />
+        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.5} />
       </mesh>
       {/* Borde derecho */}
       <mesh position={[20, 3, -19.95]}>
-        <planeGeometry args={[0.04, 12]} />
-        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.4} />
+        <planeGeometry args={[0.08, 12.2]} />
+        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.5} />
       </mesh>
 
-      {/* Paredes laterales */}
-      <mesh rotation={[0, Math.PI / 2, 0]} position={[-22, 3, -10]}>
-        <planeGeometry args={[50, 12]} />
-        <primitive object={_matWall} attach="material" />
-      </mesh>
-      <mesh rotation={[0, -Math.PI / 2, 0]} position={[22, 3, -10]}>
-        <planeGeometry args={[50, 12]} />
-        <primitive object={_matWall} attach="material" />
-      </mesh>
+      {/* ─── Esquinas iluminadas del panel ─── */}
+      {[[-20, 9], [20, 9], [-20, -3], [20, -3]].map(([x, y], i) => (
+        <mesh key={`corner-${i}`} position={[x, y, -19.94]}>
+          <circleGeometry args={[0.25, 8]} />
+          <meshBasicMaterial color={0x00d4ff} transparent opacity={0.35} depthWrite={false} />
+        </mesh>
+      ))}
 
-      {/* Pared trasera (detrás del jugador) */}
-      <mesh rotation={[0, Math.PI, 0]} position={[0, 3, 10]}>
-        <planeGeometry args={[50, 12]} />
-        <primitive object={_matWall} attach="material" />
-      </mesh>
-
-      {/* ─── Líneas de neón decorativas en el suelo ─── */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.99, -10]}>
-        <planeGeometry args={[0.04, 40]} />
-        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.3} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.99, -10]}>
-        <planeGeometry args={[40, 0.04]} />
-        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.3} />
-      </mesh>
-
-      {/* Líneas de neón a lo largo de la base de la pared frontal */}
-      <mesh position={[0, -2, -19.95]}>
+      {/* ─── Línea de acento magenta en la base ─── */}
+      <mesh position={[0, -2.5, -19.95]}>
         <planeGeometry args={[40, 0.06]} />
-        <meshBasicMaterial color={0xff2d78} transparent opacity={0.4} />
+        <meshBasicMaterial color={0xff2d78} transparent opacity={0.45} />
+      </mesh>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          ELEMENTOS DE PROFUNDIDAD — columnas y pilares de referencia
+          ═══════════════════════════════════════════════════════════════════ */}
+
+      {/* Columnas junto al panel */}
+      {[-22, 22].map((x) => (
+        <group key={`col-${x}`}>
+          <mesh position={[x, 1.5, -20]} castShadow={!IS_LOW_END}>
+            <boxGeometry args={[0.8, 7, 0.8]} />
+            <meshStandardMaterial color={0x5a5d65} metalness={0.3} roughness={0.7} />
+          </mesh>
+          {/* Tapa luminosa */}
+          <mesh position={[x, 5.1, -20]}>
+            <boxGeometry args={[0.85, 0.12, 0.85]} />
+            <meshBasicMaterial color={0x00d4ff} transparent opacity={0.5} />
+          </mesh>
+          {/* Base */}
+          <mesh position={[x, -1.9, -20]}>
+            <boxGeometry args={[1.2, 0.2, 1.2]} />
+            <meshStandardMaterial color={0x555555} metalness={0.4} roughness={0.6} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Columnas lejanas para perspectiva */}
+      {[-40, -30, 30, 40].map((x) => (
+        <mesh key={`far-col-${x}`} position={[x, 0, -35]}>
+          <boxGeometry args={[0.5, 4, 0.5]} />
+          <meshStandardMaterial color={0x606065} metalness={0.2} roughness={0.8} />
+        </mesh>
+      ))}
+
+      {/* ─── Líneas de guía en el suelo (perspectiva) ─── */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.99, -10]}>
+        <planeGeometry args={[0.05, 80]} />
+        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.12} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-10, -1.99, -10]}>
+        <planeGeometry args={[0.03, 80]} />
+        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.06} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[10, -1.99, -10]}>
+        <planeGeometry args={[0.03, 80]} />
+        <meshBasicMaterial color={0x00d4ff} transparent opacity={0.06} />
       </mesh>
     </>
   );
 };
 
+// Exportar blob shadow primitives para que Targets.jsx pueda usarlos en low-end
+export { _blobShadowGeo, _blobShadowMat };
 export default Scene3D;

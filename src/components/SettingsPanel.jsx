@@ -73,6 +73,49 @@ const SettingsPanel = ({ onClose }) => {
           </label>
         </div>
 
+        {/* Toggle VR Effects */}
+        <div className="settings-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="settings-label" style={{ marginBottom: 0 }}>
+            EFECTOS VR (Vignette)
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={useGameStore((s) => s.vrEffects)}
+              onChange={(e) => useGameStore.getState().updateSettings({ vrEffects: e.target.checked })}
+              style={{ width: 18, height: 18, accentColor: 'var(--c-primary)', cursor: 'pointer' }}
+            />
+          </label>
+        </div>
+
+        {/* Toggle Gyro */}
+        <div className="settings-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="settings-label" style={{ marginBottom: 0 }}>
+            USAR GIROSCOPIO (Móvil)
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={useGameStore((s) => s.gyroEnabled)}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                useGameStore.getState().updateSettings({ gyroEnabled: checked });
+                if (checked && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                  DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                      if (permissionState !== 'granted') {
+                        useGameStore.getState().updateSettings({ gyroEnabled: false });
+                        alert("Permiso de giroscopio denegado.");
+                      }
+                    })
+                    .catch(console.error);
+                }
+              }}
+              style={{ width: 18, height: 18, accentColor: 'var(--c-primary)', cursor: 'pointer' }}
+            />
+          </label>
+        </div>
+
         {/* Tip de uso */}
         <div style={{
           background: 'rgba(0,212,255,0.05)',

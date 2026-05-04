@@ -55,3 +55,28 @@ export function classifyReaction(reactionMs) {
   if (reactionMs < 1200) return { label: 'LENTO',    color: '#ffb800' };
   return                        { label: 'MUY LENTO', color: '#888'   };
 }
+
+/**
+ * Puntos para modo Tracking con cadencia (AK-47).
+ * @param {object} params
+ * @param {number} params.consecutiveHits - Impactos consecutivos actuales
+ * @param {number} params.combo - Nivel de combo global
+ */
+export function calcTrackingScore({ consecutiveHits, combo }) {
+  const base = 10;
+  const streakBonus = Math.min(consecutiveHits, 10) * 2;
+  const comboMult = 1 + Math.min(combo, 10) * 0.05;
+  return Math.round((base + streakBonus) * comboMult);
+}
+
+/**
+ * Bonus por destruir (kill) un target en modo Tracking.
+ * @param {object} params
+ * @param {number} params.timeToKill - Segundos que tomó destruirlo
+ * @param {number} params.combo - Nivel de combo global
+ */
+export function calcTrackingKillBonus({ timeToKill, combo }) {
+  const base = timeToKill < 2 ? 300 : timeToKill < 4 ? 200 : timeToKill < 6 ? 150 : 100;
+  const comboMult = 1 + Math.min(combo, 10) * 0.05;
+  return Math.round(base * comboMult);
+}

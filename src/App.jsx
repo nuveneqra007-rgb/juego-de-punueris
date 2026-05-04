@@ -91,10 +91,10 @@ const ExitButton = () => (
 
 // ─── Datos de modos ───────────────────────────────────────────────────────────
 const MODES = [
-  { id: 'gridshot', label: 'GRIDSHOT', desc: 'Grid 3×3 · Inmediato al matar', color: '#00d4ff', icon: '⊞' },
-  { id: 'flick',   label: 'FLICK',    desc: 'Target extremo · Reacción pura', color: '#ff2d78', icon: '⚡' },
-  { id: 'tracking',label: 'TRACKING', desc: 'Sigue el objetivo · Puntos/seg',  color: '#ffb800', icon: '◎' },
-  { id: 'speed',   label: 'SPEED',    desc: 'Grid 4×4 acelerado · Targets pequeños', color: '#00ff88', icon: '▸▸' },
+  { id: 'gridshot', label: 'GRIDSHOT', desc: 'Ritmo y reflejos · Objetivos Orbitales', color: '#00d4ff', icon: '⊞' },
+  { id: 'flick',   label: 'FLICK',    desc: 'Precisión quirúrgica · Señuelos y Bullet Time', color: '#ff2d78', icon: '⚡' },
+  { id: 'tracking',label: 'TRACKING', desc: 'Control de arma · Calor y Núcleo fantasma',  color: '#ffb800', icon: '◎' },
+  { id: 'speed',   label: 'SPEED',    desc: 'Reacción pura · Warp Speed FOV', color: '#00ff88', icon: '▸▸' },
 ];
 
 // ─── ReactionBar — mini histogram ─────────────────────────────────────────────
@@ -321,11 +321,24 @@ const SummaryScreen = () => {
   const rankPosition   = useGameStore((s) => s.rankPosition);
   const bestScore      = useGameStore((s) => s.bestScore);
   const duration       = useGameStore((s) => s.duration);
+  
+  // Tracking stats
+  const trackingDamageDealt   = useGameStore((s) => s.trackingDamageDealt);
+  const trackingTargetsKilled = useGameStore((s) => s.trackingTargetsKilled);
+  const trackingShotsHit      = useGameStore((s) => s.trackingShotsHit);
+  const trackingShotsFired    = useGameStore((s) => s.trackingShotsFired);
+  const isTracking = mode === 'tracking';
 
-  const accuracy    = shots > 0 ? ((hits / shots) * 100).toFixed(1) : '0';
   const avgReaction = hits  > 0 ? Math.round(totalReaction / hits)  : 0;
   const modeData    = MODES.find((m) => m.id === mode) ?? MODES[0];
   const diffData    = getDifficulty(difficulty);
+
+  let accuracy;
+  if (isTracking) {
+    accuracy = trackingShotsFired > 0 ? ((trackingShotsHit / trackingShotsFired) * 100).toFixed(1) : '0';
+  } else {
+    accuracy = shots > 0 ? ((hits / shots) * 100).toFixed(1) : '0';
+  }
 
   const rating = (() => {
     if (accuracy >= 90 && avgReaction < 350) return { label: 'ELITE',     color: '#ff2d78' };
@@ -413,8 +426,11 @@ const SummaryScreen = () => {
         </div>
 
         <div className="summary-stat-card" style={{ '--stat-delay': '0.15s' }}>
-          <div className="stat-card-value">{hits}<span className="stat-unit"> / {shots}</span></div>
-          <div className="stat-card-label">Aciertos</div>
+          <div className="stat-card-value">
+            {isTracking ? trackingTargetsKilled : hits}
+            <span className="stat-unit"> / {isTracking ? trackingShotsFired : shots}</span>
+          </div>
+          <div className="stat-card-label">{isTracking ? 'Targets Kill' : 'Aciertos'}</div>
         </div>
 
         <div className="summary-stat-card" style={{ '--stat-delay': '0.2s' }}>
@@ -422,15 +438,22 @@ const SummaryScreen = () => {
           <div className="stat-card-label">Combo Máx</div>
         </div>
 
-        <div className="summary-stat-card" style={{ '--stat-delay': '0.25s' }}>
-          <div className="stat-card-value">{avgReaction}<span className="stat-unit">ms</span></div>
-          <div className="stat-card-label">Reacción Avg</div>
-          {hits > 0 && (
-            <div className="stat-card-sub" style={{ color: classifyReaction(avgReaction).color }}>
-              {classifyReaction(avgReaction).label}
-            </div>
-          )}
-        </div>
+        {isTracking ? (
+          <div className="summary-stat-card" style={{ '--stat-delay': '0.25s' }}>
+            <div className="stat-card-value">{trackingDamageDealt}</div>
+            <div className="stat-card-label">Daño Total</div>
+          </div>
+        ) : (
+          <div className="summary-stat-card" style={{ '--stat-delay': '0.25s' }}>
+            <div className="stat-card-value">{avgReaction}<span className="stat-unit">ms</span></div>
+            <div className="stat-card-label">Reacción Avg</div>
+            {hits > 0 && (
+              <div className="stat-card-sub" style={{ color: classifyReaction(avgReaction).color }}>
+                {classifyReaction(avgReaction).label}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="summary-stat-card" style={{ '--stat-delay': '0.3s' }}>
           <div className="stat-card-value">{headshots}</div>

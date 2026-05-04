@@ -31,10 +31,24 @@ const createGameSlice = (set, get) => ({
   hitTimeline:     [],       // [{ time, hit: bool, reaction }] orden temporal
   headshots:       0,        // Hits con reacción < 200ms
 
+  // Tracking AK-47 metrics
+  trackingDamageDealt: 0,     // Total de daño infligido
+  trackingTargetsKilled: 0,   // Targets eliminados (HP → 0)
+  trackingTimeOnTarget: 0,    // Segundos con la mira sobre el target (no se usa estrictamente, pero es una métrica)
+  trackingAccuracy: 0,        // Se calcula al final
+  trackingShotsFired: 0,      // Total de balas disparadas
+  trackingShotsHit: 0,        // Balas que impactaron
+
   // Post-game results
   isNewBest:       false,
   rankPosition:    -1,
   bestScore:       null,     // Best score previo para comparación
+
+  // Epic Mechanics State
+  consecutiveMisses: 0,
+  glitchActive:    false,
+  bulletTimeActive: false,
+  tunnelFov:       0,        // 0 means use default FOV
 
   // ── Estado de mecánicas FPS ────────────────────────────────────────────────
   isADS:     false,
@@ -51,8 +65,11 @@ const createGameSlice = (set, get) => ({
       score: 0, shots: 0, hits: 0, combo: 0, maxCombo: 0,
       timeLeft: duration, totalReactionMs: 0, lastReactionMs: 0,
       reactionTimes: [], hitTimeline: [], headshots: 0,
+      trackingDamageDealt: 0, trackingTargetsKilled: 0, trackingTimeOnTarget: 0,
+      trackingShotsFired: 0, trackingShotsHit: 0,
       isADS: false, isCrouching: false,
       isNewBest: false, rankPosition: -1, bestScore: best,
+      consecutiveMisses: 0, glitchActive: false, bulletTimeActive: false, tunnelFov: 0,
     });
   },
 
@@ -137,6 +154,7 @@ const createGameSlice = (set, get) => ({
         reactionTimes:   [...s.reactionTimes, reactionMs],
         hitTimeline:     [...s.hitTimeline, { time: elapsed, hit: true, reaction: reactionMs }],
         headshots:       s.headshots + (isHeadshot ? 1 : 0),
+        consecutiveMisses: 0, // Reset misses on hit
       };
     });
     return points;
@@ -155,6 +173,7 @@ const createGameSlice = (set, get) => ({
       shots:       s.shots + 1,
       combo:       0,
       hitTimeline: [...s.hitTimeline, { time: elapsed, hit: false, reaction: 0 }],
+      consecutiveMisses: s.consecutiveMisses + 1,
     }));
   },
 
@@ -164,6 +183,27 @@ const createGameSlice = (set, get) => ({
     else     get().registerMiss();
   },
 
+  // ── Métricas de Tracking ──────────────────────────────────────────────────
+  registerTrackingHit: (damage) => set((s) => ({
+    score: s.score + damage,
+    trackingDamageDealt: s.trackingDamageDealt + damage,
+    trackingShotsHit: s.trackingShotsHit + 1,
+    trackingShotsFired: s.trackingShotsFired + 1,
+  })),
+
+  registerTrackingMiss: () => set((s) => ({
+    trackingShotsFired: s.trackingShotsFired + 1,
+  })),
+
+  registerTrackingKill: () => set((s) => {
+    const newCombo = s.combo + 1;
+    return {
+      trackingTargetsKilled: s.trackingTargetsKilled + 1,
+      combo: newCombo,
+      maxCombo: Math.max(s.maxCombo, newCombo),
+    };
+  }),
+
   addScore: (pts) => set((s) => ({ score: s.score + pts })),
 
   // ── Mecánicas FPS ─────────────────────────────────────────────────────────
@@ -171,15 +211,22 @@ const createGameSlice = (set, get) => ({
   setADS:       (v) => set({ isADS: v }),
   toggleCrouch: () => set((s) => ({ isCrouching: !s.isCrouching })),
   setCrouch:    (v) => set({ isCrouching: v }),
+
+  // ── Mecánicas Epic ────────────────────────────────────────────────────────
+  setGlitchActive: (v) => set({ glitchActive: v }),
+  setBulletTimeActive: (v) => set({ bulletTimeActive: v }),
+  setTunnelFov: (v) => set({ tunnelFov: v }),
 });
 
 // ─── Slice de configuración ───────────────────────────────────────────────────
 const createSettingsSlice = (set) => ({
   sensitivity: 1,
-  fov:         90,
+  fov:         85, // VR Default
   volume:      0.7,
   showFPS:     false,
   playerName:  'Player',
+  vrEffects:   true,
+  gyroEnabled: false,
 
   updateSensitivity: (val) => {
     set({ sensitivity: val });
@@ -197,7 +244,7 @@ const createSettingsSlice = (set) => ({
 
   _getSettingsSnapshot: () => {
     const s = useGameStore.getState();
-    return { sensitivity: s.sensitivity, fov: s.fov, volume: s.volume, showFPS: s.showFPS };
+    return { sensitivity: s.sensitivity, fov: s.fov, volume: s.volume, showFPS: s.showFPS, vrEffects: s.vrEffects, gyroEnabled: s.gyroEnabled };
   },
 
   loadPersistedSettings: () => {

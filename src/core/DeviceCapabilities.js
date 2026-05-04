@@ -15,8 +15,8 @@ export const PIXEL_RATIO = IS_LOW_END
     ? Math.min(window.devicePixelRatio, 1.5)
     : Math.min(window.devicePixelRatio, 2.0);
 
-// FPS target según dispositivo
-export const TARGET_FPS = IS_LOW_END ? 30 : IS_MOBILE ? 45 : 60;
+// FPS target según dispositivo (Desktop = uncapped/120fps)
+export const TARGET_FPS = IS_LOW_END ? 30 : IS_MOBILE ? 60 : 120;
 export const FRAME_MS   = 1000 / TARGET_FPS;
 
 // Segmentos de geometría según capacidad
@@ -24,3 +24,7 @@ export const GEO_SEGMENTS = IS_LOW_END ? 6 : IS_MOBILE ? 8 : 12;
 
 // Límite de targets activos según capacidad
 export const MAX_VISIBLE = IS_LOW_END ? 4 : IS_MOBILE ? 5 : 6;
+
+// VR & Sensors Support
+export const HAS_GYRO = typeof window !== 'undefined' && 'DeviceOrientationEvent' in window;
+export const SHADOWS_ENABLED = !IS_LOW_END;

@@ -2,6 +2,7 @@
  * DifficultyConfig — Configuración centralizada de niveles de dificultad.
  * Afecta tamaño de targets, velocidad de spawn, velocidad de tracking y bonus por reacción.
  */
+import { MODE_EPIC } from './ModeEpicConfig';
 
 export const DIFFICULTIES = {
   easy: {
@@ -42,3 +43,9 @@ export const DIFFICULTIES = {
 export const DIFFICULTY_ORDER = ['easy', 'normal', 'hard'];
 
 export const getDifficulty = (id) => DIFFICULTIES[id] ?? DIFFICULTIES.normal;
+
+export const getModeEpicConfig = (mode, difficultyId) => {
+  const baseDiff = getDifficulty(difficultyId);
+  const epicConf = MODE_EPIC[mode]?.[difficultyId] || {};
+  return { ...baseDiff, ...epicConf };
+};

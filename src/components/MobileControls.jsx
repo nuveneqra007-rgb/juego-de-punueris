@@ -85,11 +85,16 @@ const MobileControls = () => {
   };
 
   // ── Fire button ────────────────────────────────────────────────────────────
-  const handleFireStart = (e) => {
+  const handleFireDown = (e) => {
     e.preventDefault();
     e.stopPropagation();
     inputRef.current.setFire(true);
-    setTimeout(() => { inputRef.current.setFire(false); }, 50);
+  };
+
+  const handleFireUp = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    inputRef.current.setFire(false);
   };
 
   // ── ADS button (toggle on tap) ──────────────────────────────────────────────
@@ -151,7 +156,10 @@ const MobileControls = () => {
 
       {/* ── 🔥 FIRE Button (derecha inferior, grande) ── */}
       <div
-        onPointerDown={handleFireStart}
+        onPointerDown={handleFireDown}
+        onPointerUp={handleFireUp}
+        onPointerCancel={handleFireUp}
+        onPointerLeave={handleFireUp}
         style={{
           ...btnBase,
           right: 20,
@@ -226,6 +234,46 @@ const MobileControls = () => {
         }}
       >
         {isFullscreen ? '⛌' : '⛶'}
+      </div>
+
+      {/* ── Gyroscope Toggle (arriba izquierda, bajo fullscreen) ── */}
+      <div
+        onPointerDown={async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const currentState = useGameStore.getState().gyroEnabled;
+          const nextState = !currentState;
+          
+          if (nextState && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            try {
+              const permission = await DeviceOrientationEvent.requestPermission();
+              if (permission === 'granted') {
+                useGameStore.getState().updateSettings({ gyroEnabled: true });
+              } else {
+                alert("Permiso de giroscopio denegado.");
+              }
+            } catch (error) {
+              console.error(error);
+            }
+          } else {
+            useGameStore.getState().updateSettings({ gyroEnabled: nextState });
+          }
+        }}
+        style={{
+          ...btnBase,
+          left: 12,
+          top: 104,
+          width: 36,
+          height: 36,
+          borderRadius: 8,
+          background: useGameStore((s) => s.gyroEnabled) ? 'rgba(0, 212, 255, 0.35)' : 'rgba(11, 15, 26, 0.7)',
+          borderColor: useGameStore((s) => s.gyroEnabled) ? '#00d4ff' : 'rgba(0, 212, 255, 0.25)',
+          color: useGameStore((s) => s.gyroEnabled) ? '#fff' : 'rgba(0, 212, 255, 0.7)',
+          fontSize: 14,
+          boxShadow: useGameStore((s) => s.gyroEnabled) ? '0 0 10px rgba(0,212,255,0.4)' : 'none',
+        }}
+      >
+        🔄
       </div>
     </>
   );

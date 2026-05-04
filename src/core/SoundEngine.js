@@ -79,8 +79,15 @@ class SoundEngine {
 
   // ─── Efectos del juego ───────────────────────────────────────────────────
 
-  /** Sonido de disparo — ruido + tono percusivo */
-  playShoot() {
+  /** Sonido de disparo — AK-47 (600 RPM) */
+  playAK47Shot() {
+    this._noise({ duration: 0.04, volume: 0.08 });
+    this._osc({ freq: 80, type: 'sawtooth', duration: 0.03, volume: 0.06 });
+    this._osc({ freq: 3200, type: 'square', duration: 0.02, volume: 0.04 });
+  }
+
+  /** Sonido de disparo — Pistola (semi-auto) */
+  playPistolShot() {
     this._noise({ duration: 0.06, volume: 0.12 });
     this._osc({ freq: 800, type: 'square', duration: 0.04, volume: 0.1 });
   }
@@ -140,6 +147,21 @@ class SoundEngine {
   /** Alerta de tiempo (últimos 5 segundos) */
   playTimeWarning() {
     this._osc({ freq: 600, type: 'square', duration: 0.08, volume: 0.15 });
+  }
+
+  // ─── Epic Effects ────────────────────────────────────────────────────────
+  playDecoyHit() {
+    this._osc({ freq: 100, type: 'sawtooth', duration: 0.3, volume: 0.3 });
+    this._noise({ duration: 0.5, volume: 0.2 });
+  }
+
+  playGhostWhoosh() {
+    this._noise({ duration: 0.4, volume: 0.1 });
+    this._osc({ freq: 800, type: 'sine', duration: 0.4, volume: 0.1, detune: -400 });
+  }
+
+  playBulletTime() {
+    this._osc({ freq: 300, type: 'sine', duration: 0.8, volume: 0.2, detune: -1000 });
   }
 
   // ─── Control ─────────────────────────────────────────────────────────────

@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import useGameStore from '../store/gameStore';
 import { InputBus } from '../core/InputBus';
 import { classifyReaction } from '../core/ScoreEngine';
+import { weaponSystem } from '../core/WeaponSystem';
 
 // ─── FPS Counter ──────────────────────────────────────────────────────────────
 // Solo monta si showFPS está activo. Usa RAF, no React state por frame.
@@ -144,11 +145,78 @@ const ComboDisplay = memo(() => {
   );
 });
 
+// ─── EpicHUD ────────────────────────────────────────────────────────────────
+const EpicHUD = memo(() => {
+  const { mode, difficulty, glitchActive, bulletTimeActive, tunnelFov } = useGameStore(
+    useShallow((s) => ({
+      mode: s.mode,
+      difficulty: s.difficulty,
+      glitchActive: s.glitchActive,
+      bulletTimeActive: s.bulletTimeActive,
+      tunnelFov: s.tunnelFov,
+    }))
+  );
+
+  const barRef = useRef(null);
+  const fillRef = useRef(null);
+  const textRef = useRef(null);
+
+  // Poll heat state directly from weaponSystem to avoid Zustand re-renders
+  useEffect(() => {
+    if (mode !== 'tracking') return;
+    let raf;
+    const loop = () => {
+      if (barRef.current && fillRef.current) {
+        const heat = weaponSystem.heat;
+        const jammed = weaponSystem.jammedTimer > 0;
+        
+        barRef.current.style.opacity = heat > 0 ? '1' : '0';
+        fillRef.current.style.width = `${heat * 100}%`;
+        fillRef.current.style.background = jammed ? '#ff2d78' : '#ffb800';
+        
+        if (textRef.current) {
+          textRef.current.style.display = jammed ? 'block' : 'none';
+        }
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [mode]);
+
+  return (
+    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 28 }}>
+      
+      {/* Tracking Overheat Bar */}
+      {mode === 'tracking' && (
+        <div ref={barRef} style={{ position: 'absolute', bottom: '25%', left: '50%', transform: 'translateX(-50%)', width: 200, height: 6, background: 'rgba(0,0,0,0.5)', borderRadius: 3, overflow: 'hidden', opacity: 0, transition: 'opacity 0.2s' }}>
+          <div ref={fillRef} style={{ height: '100%', width: '0%', background: '#ffb800', transition: 'width 0.1s linear, background 0.2s' }} />
+          <div ref={textRef} style={{ position: 'absolute', width: '100%', top: -20, textAlign: 'center', color: '#ff2d78', fontSize: 12, fontWeight: 'bold', display: 'none' }}>SOBRECALENTAMIENTO</div>
+        </div>
+      )}
+
+      {/* Bullet Time Indicator */}
+      {bulletTimeActive && (
+        <div style={{ position: 'absolute', top: '20%', left: '50%', transform: 'translateX(-50%)', color: '#00d4ff', fontSize: 24, fontWeight: 800, textShadow: '0 0 10px #00d4ff', animation: 'pulse 0.5s infinite' }}>
+          BULLET TIME
+        </div>
+      )}
+
+      {/* Speed FOV Warning */}
+      {mode === 'speed' && tunnelFov > 0 && tunnelFov < 90 && (
+        <div style={{ position: 'absolute', bottom: '30%', left: '50%', transform: 'translateX(-50%)', color: '#ff2d78', fontSize: 14, fontWeight: 800, letterSpacing: 2 }}>
+          VISIÓN REDUCIDA
+        </div>
+      )}
+    </div>
+  );
+});
+
 // ─── HUD Principal ────────────────────────────────────────────────────────────
 // *** FASE 4: useShallow batea score + timeLeft + hits + shots + mode en UNA
 //     sola suscripción con shallow equality. Antes eran 5 re-renders separados. ***
 const HUD = () => {
-  const { score, timeLeft, hits, shots, mode, showFPS } = useGameStore(
+  const { score, timeLeft, hits, shots, mode, showFPS, trackingTargetsKilled, trackingShotsHit, trackingShotsFired } = useGameStore(
     useShallow((s) => ({
       score:   s.score,
       timeLeft:s.timeLeft,
@@ -156,10 +224,23 @@ const HUD = () => {
       shots:   s.shots,
       mode:    s.mode,
       showFPS: s.showFPS,
+      trackingTargetsKilled: s.trackingTargetsKilled,
+      trackingShotsHit: s.trackingShotsHit,
+      trackingShotsFired: s.trackingShotsFired,
     }))
   );
-  const accuracy = shots > 0 ? ((hits / shots) * 100).toFixed(1) : '100';
+  
+  const isTracking = mode === 'tracking';
+  
+  let accuracyText = '100%';
+  if (isTracking) {
+    accuracyText = trackingShotsFired > 0 ? ((trackingShotsHit / trackingShotsFired) * 100).toFixed(1) + '%' : '100%';
+  } else {
+    accuracyText = shots > 0 ? ((hits / shots) * 100).toFixed(1) + '%' : '100%';
+  }
+
   const urgent   = timeLeft <= 5;
+  const weapon   = weaponSystem.weapon;
 
   return (
     <>
@@ -193,11 +274,14 @@ const HUD = () => {
           {timeLeft}s
         </div>
 
-        {/* ACC + Modo */}
+        {/* ACC + Modo + Arma */}
         <div style={{ textAlign: 'right', fontSize: 'clamp(11px, 1.5vw, 15px)' }}>
-          <div style={{ color: '#aaa' }}>{accuracy}%</div>
-          <div style={{ color: 'var(--c-primary)', fontSize: '0.85em', letterSpacing: 1 }}>
-            {mode.toUpperCase()}
+          <div style={{ color: '#aaa' }}>
+            {isTracking && <span style={{ marginRight: 6, color: '#ff2d78' }}>☠ {trackingTargetsKilled}</span>}
+            {accuracyText}
+          </div>
+          <div style={{ color: 'var(--c-primary)', fontSize: '0.85em', letterSpacing: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+            {weapon.icon} {mode.toUpperCase()}
           </div>
         </div>
       </div>
@@ -205,8 +289,9 @@ const HUD = () => {
       <HitMarker />
       <FloatingScore />
       <ComboDisplay />
+      <EpicHUD />
 
-      {/* ── Crosshair CSS (siempre centrado, independiente del 3D) ── */}
+      {/* ── Retículo VR CSS (siempre centrado, independiente del 3D) ── */}
       <div style={{
         position: 'absolute', top: '50%', left: '50%',
         transform: 'translate(-50%, -50%)',
@@ -214,20 +299,20 @@ const HUD = () => {
       }}>
         {/* Dot central */}
         <div style={{
-          position: 'absolute', left: '50%', top: '50%',
-          width: 4, height: 4, borderRadius: '50%',
-          background: '#00d4ff',
-          boxShadow: '0 0 6px rgba(0,212,255,0.8)',
+          width: 5, height: 5, borderRadius: '50%',
+          background: 'rgba(255, 255, 255, 0.9)',
+          boxShadow: '0 0 6px rgba(255,255,255,0.7)',
           transform: 'translate(-50%, -50%)',
         }} />
-        {/* Línea superior */}
-        <div style={{ position: 'absolute', left: '50%', top: -12, width: 2, height: 8, background: 'rgba(0,212,255,0.6)', transform: 'translateX(-50%)' }} />
-        {/* Línea inferior */}
-        <div style={{ position: 'absolute', left: '50%', bottom: -12, width: 2, height: 8, background: 'rgba(0,212,255,0.6)', transform: 'translateX(-50%)' }} />
-        {/* Línea izquierda */}
-        <div style={{ position: 'absolute', top: '50%', left: -12, width: 8, height: 2, background: 'rgba(0,212,255,0.6)', transform: 'translateY(-50%)' }} />
-        {/* Línea derecha */}
-        <div style={{ position: 'absolute', top: '50%', right: -12, width: 8, height: 2, background: 'rgba(0,212,255,0.6)', transform: 'translateY(-50%)' }} />
+        {/* Anillo exterior sutil (VR style) */}
+        <div style={{
+          position: 'absolute',
+          top: -14, left: -14,
+          width: 33, height: 33,
+          border: '1.5px solid rgba(255, 255, 255, 0.25)',
+          borderRadius: '50%',
+          boxShadow: 'inset 0 0 4px rgba(255,255,255,0.1), 0 0 4px rgba(255,255,255,0.1)',
+        }} />
       </div>
 
       {showFPS && <FPSCounter />}

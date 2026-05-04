@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useRef, useEffect } from 'react';
 import { InputBus } from '../core/InputBus';
+import useGameStore from '../store/gameStore';
+import { IS_MOBILE } from '../core/DeviceCapabilities';
 
 export const InputContext = createContext(null);
 
@@ -68,6 +70,55 @@ export const InputProvider = ({ children }) => {
       window.removeEventListener('keyup',       handleKeyUp);
       window.removeEventListener('contextmenu', preventContext);
     };
+  }, []);
+
+  // ── Móvil: Giroscopio (DeviceOrientation) ──────────────────────────────────
+  useEffect(() => {
+    if (!IS_MOBILE) return;
+
+    let lastAlpha = null;
+    let lastBeta = null;
+
+    const handleOrientation = (e) => {
+      // Check store to see if gyro is enabled
+      const isGyroEnabled = useGameStore.getState().gyroEnabled;
+      const phase = useGameStore.getState().phase;
+      
+      if (!isGyroEnabled || phase !== 'playing') {
+        lastAlpha = null;
+        lastBeta = null;
+        return;
+      }
+
+      const alpha = e.alpha; // Z-axis (yaw)
+      const beta = e.beta;   // X-axis (pitch)
+      // gamma is Y-axis (roll), we usually don't use it for aiming
+
+      if (lastAlpha !== null && lastBeta !== null) {
+        // Calculate deltas
+        let dAlpha = alpha - lastAlpha;
+        let dBeta = beta - lastBeta;
+
+        // Handle 360 wrap around for alpha
+        if (dAlpha > 180) dAlpha -= 360;
+        else if (dAlpha < -180) dAlpha += 360;
+
+        // Apply sensitivity (lower multiplier because gyro degrees are large)
+        const sens = inputRef.current.sensitivity * 0.003;
+        
+        // Note: landscape vs portrait orientation would technically require 
+        // swapping axes, but game enforces landscape mode.
+        // Assuming Landscape orientation:
+        inputRef.current.addYaw(dAlpha * sens);
+        inputRef.current.addPitch(dBeta * sens);
+      }
+
+      lastAlpha = alpha;
+      lastBeta = beta;
+    };
+
+    window.addEventListener('deviceorientation', handleOrientation);
+    return () => window.removeEventListener('deviceorientation', handleOrientation);
   }, []);
 
   return (

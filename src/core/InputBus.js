@@ -5,11 +5,15 @@
  */
 
 const _listeners = {
-  shoot:  new Set(),
-  hit:    new Set(),
-  miss:   new Set(),
-  look:   new Set(),
-  'hit-fx': new Set(),
+  shoot:          new Set(),
+  hit:            new Set(),
+  miss:           new Set(),
+  look:           new Set(),
+  'hit-fx':       new Set(),
+  'fire-start':   new Set(),
+  'fire-stop':    new Set(),
+  'weapon-shot':  new Set(),
+  'tracking-kill': new Set(),
 };
 
 export const InputBus = {
