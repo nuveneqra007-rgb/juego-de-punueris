@@ -6,6 +6,13 @@ import HUD from './components/HUD';
 import MobileControls from './components/MobileControls';
 import SettingsPanel from './components/SettingsPanel';
 import SettingsButton from './components/SettingsButton';
+import Countdown from './components/Countdown';
+import MenuParticles from './components/MenuParticles';
+import RankingPanel from './components/RankingPanel';
+import { DIFFICULTIES, DIFFICULTY_ORDER, getDifficulty } from './core/DifficultyConfig';
+import { soundEngine } from './core/SoundEngine';
+import { getBestScore } from './utils/storage';
+import { classifyReaction } from './core/ScoreEngine';
 
 // ─── AppInitializer ───────────────────────────────────────────────────────────
 const AppInitializer = () => {
@@ -40,7 +47,8 @@ const AppInitializer = () => {
       if (e.button === 2) useGameStore.getState().setADS(false);
     };
     const preventContext = (e) => {
-      if (useGameStore.getState().phase === 'playing') e.preventDefault();
+      const phase = useGameStore.getState().phase;
+      if (phase === 'playing' || phase === 'countdown') e.preventDefault();
     };
     window.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mouseup', handleMouseUp);
@@ -89,10 +97,93 @@ const MODES = [
   { id: 'speed',   label: 'SPEED',    desc: 'Grid 4×4 acelerado · Targets pequeños', color: '#00ff88', icon: '▸▸' },
 ];
 
+// ─── ReactionBar — mini histogram ─────────────────────────────────────────────
+const ReactionBar = ({ reactionTimes }) => {
+  if (!reactionTimes || reactionTimes.length === 0) return null;
+
+  const buckets = [
+    { label: 'ELITE',  max: 250,  color: '#ff2d78', count: 0 },
+    { label: 'RÁPIDO', max: 400,  color: '#00ff88', count: 0 },
+    { label: 'BIEN',   max: 700,  color: '#00d4ff', count: 0 },
+    { label: 'LENTO',  max: 99999, color: '#ffb800', count: 0 },
+  ];
+
+  reactionTimes.forEach((rt) => {
+    for (const b of buckets) {
+      if (rt < b.max) { b.count++; break; }
+    }
+  });
+
+  const total = reactionTimes.length;
+
+  return (
+    <div className="reaction-bar-container">
+      <div className="reaction-bar-label">Distribución de Reacción</div>
+      <div className="reaction-bar-row">
+        {buckets.map((b) => {
+          const pct = total > 0 ? ((b.count / total) * 100).toFixed(0) : 0;
+          return (
+            <div key={b.label} className="reaction-bucket">
+              <div className="reaction-bucket-bar-wrap">
+                <div
+                  className="reaction-bucket-bar"
+                  style={{
+                    height: `${Math.max(4, (b.count / total) * 100)}%`,
+                    background: b.color,
+                    boxShadow: `0 0 8px ${b.color}40`,
+                  }}
+                />
+              </div>
+              <div className="reaction-bucket-count" style={{ color: b.color }}>{b.count}</div>
+              <div className="reaction-bucket-label">{b.label}</div>
+              <div className="reaction-bucket-pct">{pct}%</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ─── HitTimeline — visual timeline of hits/misses ─────────────────────────────
+const HitTimeline = ({ hitTimeline }) => {
+  if (!hitTimeline || hitTimeline.length === 0) return null;
+
+  return (
+    <div className="hit-timeline-container">
+      <div className="reaction-bar-label">Timeline de Disparos</div>
+      <div className="hit-timeline-bar">
+        {hitTimeline.map((entry, i) => (
+          <div
+            key={i}
+            className="hit-timeline-dot"
+            style={{
+              background: entry.hit ? '#00ff88' : '#ff4444',
+              boxShadow: `0 0 4px ${entry.hit ? '#00ff8860' : '#ff444460'}`,
+              flex: 1,
+              maxWidth: 6,
+            }}
+            title={entry.hit ? `${entry.reaction}ms` : 'Miss'}
+          />
+        ))}
+      </div>
+      <div className="hit-timeline-legend">
+        <span style={{ color: '#00ff88' }}>● Acierto</span>
+        <span style={{ color: '#ff4444' }}>● Fallo</span>
+      </div>
+    </div>
+  );
+};
+
 // ─── MenuScreen ───────────────────────────────────────────────────────────────
 const MenuScreen = () => {
   const [selectedMode, setSelectedMode] = useState('gridshot');
-  const [duration,     setDuration]     = useState(30);
+  const [difficulty, setDifficulty]     = useState('normal');
+  const [duration, setDuration]         = useState(30);
+  const [showRanking, setShowRanking]   = useState(false);
+  const playerName = useGameStore((s) => s.playerName);
+
+  const bestScore = getBestScore(selectedMode, difficulty);
 
   return (
     <div className="menu-screen" style={{ zIndex: 50 }}>
@@ -112,6 +203,19 @@ const MenuScreen = () => {
         <div className="title-line" />
         <div className="subtitle">ENTRENADOR DE PUNTERÍA PRO</div>
 
+        {/* Player Name Input */}
+        <div className="player-name-row">
+          <label className="player-name-label">JUGADOR</label>
+          <input
+            type="text"
+            className="player-name-input"
+            value={playerName}
+            maxLength={16}
+            onChange={(e) => useGameStore.getState().updateSettings({ playerName: e.target.value })}
+            onFocus={() => soundEngine.playUIClick()}
+          />
+        </div>
+
         {/* Grid de modos */}
         <div className="mode-grid">
           {MODES.map((m) => (
@@ -119,7 +223,7 @@ const MenuScreen = () => {
               key={m.id}
               className={`mode-card ${selectedMode === m.id ? 'active' : ''}`}
               style={{ '--mode-color': m.color }}
-              onClick={() => setSelectedMode(m.id)}
+              onClick={() => { setSelectedMode(m.id); soundEngine.playUIClick(); }}
             >
               <div className="mode-icon">{m.icon}</div>
               <div className="mode-label">{m.label}</div>
@@ -128,46 +232,100 @@ const MenuScreen = () => {
           ))}
         </div>
 
+        {/* Selector de dificultad */}
+        <div className="difficulty-section">
+          <div className="section-label">DIFICULTAD</div>
+          <div className="difficulty-row">
+            {DIFFICULTY_ORDER.map((dId) => {
+              const d = DIFFICULTIES[dId];
+              return (
+                <button
+                  key={dId}
+                  className={`difficulty-btn ${difficulty === dId ? 'active' : ''}`}
+                  style={{ '--diff-color': d.color }}
+                  onClick={() => { setDifficulty(dId); soundEngine.playUIClick(); }}
+                >
+                  <span className="diff-icon">{d.icon}</span>
+                  <span className="diff-label">{d.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Selector de duración */}
         <div className="duration-row">
           {[15, 30, 60].map((d) => (
             <button
               key={d}
               className={`duration-btn ${duration === d ? 'active' : ''}`}
-              onClick={() => setDuration(d)}
+              onClick={() => { setDuration(d); soundEngine.playUIClick(); }}
             >
               {d}s
             </button>
           ))}
         </div>
 
+        {/* Best score display */}
+        {bestScore && (
+          <div className="best-score-display">
+            <span className="best-score-label">🏆 MEJOR</span>
+            <span className="best-score-value">{bestScore.score?.toLocaleString()}</span>
+            <span className="best-score-acc">{bestScore.accuracy}%</span>
+          </div>
+        )}
+
         <button
           className="btn-primary"
-          onClick={() => useGameStore.getState().startSession(duration, selectedMode)}
+          onClick={() => {
+            soundEngine.init();
+            useGameStore.getState().startSession(duration, selectedMode, difficulty);
+          }}
         >
           COMENZAR
         </button>
+
+        {/* Botones secundarios */}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 10 }}>
+          <button
+            className="btn-ghost"
+            onClick={() => { setShowRanking(true); soundEngine.playUIClick(); }}
+          >
+            🏆 RANKING
+          </button>
+        </div>
 
         <div className="subtitle" style={{ marginTop: 14, marginBottom: 0 }}>
           Clic / Toca · Arrastra para mirar · C agacharse · RMB mira
         </div>
       </div>
+
+      {showRanking && <RankingPanel onClose={() => setShowRanking(false)} />}
     </div>
   );
 };
 
 // ─── SummaryScreen ────────────────────────────────────────────────────────────
 const SummaryScreen = () => {
-  const score         = useGameStore((s) => s.score);
-  const hits          = useGameStore((s) => s.hits);
-  const shots         = useGameStore((s) => s.shots);
-  const maxCombo      = useGameStore((s) => s.maxCombo);
-  const totalReaction = useGameStore((s) => s.totalReactionMs);
-  const mode          = useGameStore((s) => s.mode);
+  const score          = useGameStore((s) => s.score);
+  const hits           = useGameStore((s) => s.hits);
+  const shots          = useGameStore((s) => s.shots);
+  const maxCombo       = useGameStore((s) => s.maxCombo);
+  const totalReaction  = useGameStore((s) => s.totalReactionMs);
+  const mode           = useGameStore((s) => s.mode);
+  const difficulty     = useGameStore((s) => s.difficulty);
+  const reactionTimes  = useGameStore((s) => s.reactionTimes);
+  const hitTimeline    = useGameStore((s) => s.hitTimeline);
+  const headshots      = useGameStore((s) => s.headshots);
+  const isNewBest      = useGameStore((s) => s.isNewBest);
+  const rankPosition   = useGameStore((s) => s.rankPosition);
+  const bestScore      = useGameStore((s) => s.bestScore);
+  const duration       = useGameStore((s) => s.duration);
 
   const accuracy    = shots > 0 ? ((hits / shots) * 100).toFixed(1) : '0';
   const avgReaction = hits  > 0 ? Math.round(totalReaction / hits)  : 0;
   const modeData    = MODES.find((m) => m.id === mode) ?? MODES[0];
+  const diffData    = getDifficulty(difficulty);
 
   const rating = (() => {
     if (accuracy >= 90 && avgReaction < 350) return { label: 'ELITE',     color: '#ff2d78' };
@@ -176,46 +334,121 @@ const SummaryScreen = () => {
     return                                           { label: 'SIGUE',     color: '#64748b' };
   })();
 
+  // Calculate min/max reaction
+  const minReaction = reactionTimes.length > 0 ? Math.min(...reactionTimes) : 0;
+  const maxReaction = reactionTimes.length > 0 ? Math.max(...reactionTimes) : 0;
+
   return (
     <div className="summary-screen">
-      {/* Badge de modo */}
-      <div style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6,
-        background: `${modeData.color}18`,
-        border: `1px solid ${modeData.color}44`,
-        borderRadius: 99, padding: '4px 14px',
-        fontFamily: 'var(--font-hud)', fontSize: 11, letterSpacing: 2,
-        color: modeData.color, marginBottom: 10,
-      }}>
-        {modeData.icon} {modeData.label}
+      {/* New Record Banner */}
+      {isNewBest && (
+        <div className="new-record-banner">
+          ⭐ ¡NUEVO RÉCORD! ⭐
+        </div>
+      )}
+
+      {/* Badge de modo + dificultad */}
+      <div className="summary-badges">
+        <div className="summary-badge" style={{
+          background: `${modeData.color}18`,
+          border: `1px solid ${modeData.color}44`,
+          color: modeData.color,
+        }}>
+          {modeData.icon} {modeData.label}
+        </div>
+        <div className="summary-badge" style={{
+          background: `${diffData.color}18`,
+          border: `1px solid ${diffData.color}44`,
+          color: diffData.color,
+        }}>
+          {diffData.icon} {diffData.label}
+        </div>
       </div>
 
       <h2>SESIÓN COMPLETADA</h2>
 
       {/* Rating badge */}
-      <div style={{
-        fontFamily: 'var(--font-title)',
-        fontSize: 'clamp(20px, 3.5vw, 34px)',
-        fontWeight: 900,
+      <div className="summary-rating" style={{
         color: rating.color,
         textShadow: `0 0 20px ${rating.color}`,
-        letterSpacing: 4,
-        margin: '10px 0 16px',
-        animation: 'pulse 2s ease infinite',
       }}>
         {rating.label}
       </div>
 
+      {/* Rank position */}
+      {rankPosition > 0 && rankPosition <= 3 && (
+        <div className="rank-position" style={{ color: rankPosition === 1 ? '#ffd700' : rankPosition === 2 ? '#c0c0c0' : '#cd7f32' }}>
+          {rankPosition === 1 ? '🥇' : rankPosition === 2 ? '🥈' : '🥉'} Puesto #{rankPosition}
+        </div>
+      )}
+
       <div className="summary-divider" />
 
-      {/* Stats */}
-      <div style={{ minWidth: 220 }}>
-        <div className="summary-stat">Puntuación   <span>{score.toLocaleString()}</span></div>
-        <div className="summary-stat">Precisión    <span>{accuracy}%</span></div>
-        <div className="summary-stat">Aciertos     <span>{hits} / {shots}</span></div>
-        <div className="summary-stat">Combo máx    <span>×{maxCombo}</span></div>
-        {hits > 0 && <div className="summary-stat">Reacción avg <span>{avgReaction}ms</span></div>}
+      {/* Score principal con comparación */}
+      <div className="summary-score-main">
+        <div className="summary-score-label">PUNTUACIÓN</div>
+        <div className="summary-score-value">{score.toLocaleString()}</div>
+        {bestScore && !isNewBest && (
+          <div className="summary-score-compare">
+            Mejor: {bestScore.score?.toLocaleString()}
+            {score > 0 && bestScore.score > 0 && (
+              <span style={{ color: score >= bestScore.score ? '#00ff88' : '#ff4444', marginLeft: 6 }}>
+                {score >= bestScore.score ? '▲' : '▼'} {Math.abs(score - bestScore.score).toLocaleString()}
+              </span>
+            )}
+          </div>
+        )}
       </div>
+
+      <div className="summary-divider" />
+
+      {/* Stats Grid 2x3 */}
+      <div className="summary-stats-grid">
+        <div className="summary-stat-card" style={{ '--stat-delay': '0.1s' }}>
+          <div className="stat-card-value">{accuracy}<span className="stat-unit">%</span></div>
+          <div className="stat-card-label">Precisión</div>
+          <div className="stat-card-bar">
+            <div className="stat-card-bar-fill" style={{ width: `${accuracy}%`, background: parseFloat(accuracy) >= 80 ? '#00ff88' : parseFloat(accuracy) >= 60 ? '#ffb800' : '#ff4444' }} />
+          </div>
+        </div>
+
+        <div className="summary-stat-card" style={{ '--stat-delay': '0.15s' }}>
+          <div className="stat-card-value">{hits}<span className="stat-unit"> / {shots}</span></div>
+          <div className="stat-card-label">Aciertos</div>
+        </div>
+
+        <div className="summary-stat-card" style={{ '--stat-delay': '0.2s' }}>
+          <div className="stat-card-value">×{maxCombo}</div>
+          <div className="stat-card-label">Combo Máx</div>
+        </div>
+
+        <div className="summary-stat-card" style={{ '--stat-delay': '0.25s' }}>
+          <div className="stat-card-value">{avgReaction}<span className="stat-unit">ms</span></div>
+          <div className="stat-card-label">Reacción Avg</div>
+          {hits > 0 && (
+            <div className="stat-card-sub" style={{ color: classifyReaction(avgReaction).color }}>
+              {classifyReaction(avgReaction).label}
+            </div>
+          )}
+        </div>
+
+        <div className="summary-stat-card" style={{ '--stat-delay': '0.3s' }}>
+          <div className="stat-card-value">{headshots}</div>
+          <div className="stat-card-label">⚡ Headshots</div>
+          <div className="stat-card-sub" style={{ color: '#ff2d78' }}>&lt;200ms</div>
+        </div>
+
+        <div className="summary-stat-card" style={{ '--stat-delay': '0.35s' }}>
+          <div className="stat-card-value">{minReaction}<span className="stat-unit">ms</span></div>
+          <div className="stat-card-label">Mejor Reacción</div>
+        </div>
+      </div>
+
+      {/* Reaction Distribution */}
+      <ReactionBar reactionTimes={reactionTimes} />
+
+      {/* Hit Timeline */}
+      <HitTimeline hitTimeline={hitTimeline} />
 
       <div className="summary-divider" style={{ marginTop: 16 }} />
 
@@ -223,13 +456,19 @@ const SummaryScreen = () => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', marginTop: 12 }}>
         <button
           className="btn-primary"
-          onClick={() => useGameStore.getState().startSession(30, mode)}
+          onClick={() => {
+            soundEngine.playUIClick();
+            useGameStore.getState().startSession(duration, mode, difficulty);
+          }}
         >
           JUGAR DE NUEVO
         </button>
         <button
           className="btn-ghost"
-          onClick={() => useGameStore.setState({ phase: 'menu' })}
+          onClick={() => {
+            soundEngine.playUIClick();
+            useGameStore.setState({ phase: 'menu' });
+          }}
         >
           Cambiar modo
         </button>
@@ -253,8 +492,10 @@ const App = () => {
         {phase === 'playing' && <ExitButton />}
         <SettingsButton onClick={() => setShowSettings(true)} />
         {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
-        {phase === 'menu'    && <MenuScreen />}
-        {phase === 'summary' && <SummaryScreen />}
+        {phase === 'menu' && <MenuParticles />}
+        {phase === 'menu'      && <MenuScreen />}
+        {phase === 'countdown' && <Countdown />}
+        {phase === 'summary'   && <SummaryScreen />}
       </div>
     </InputProvider>
   );

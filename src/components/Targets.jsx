@@ -10,6 +10,8 @@ import { InputBus } from '../core/InputBus';
 import { shoot } from '../core/Shooter';
 import { gridShotSpawn, flickSpawn, speedSpawn, trackingPosition } from '../core/SpawnPatterns';
 import { GEO_SEGMENTS, MAX_VISIBLE, FRAME_MS, IS_MOBILE } from '../core/DeviceCapabilities';
+import { getDifficulty } from '../core/DifficultyConfig';
+import { soundEngine } from '../core/SoundEngine';
 
 const MAX_TARGETS = 16;
 const MODE_CONFIG = {
@@ -108,9 +110,11 @@ const TargetManager = () => {
   const { camera } = useThree();
   const phase        = useGameStore((s) => s.phase);
   const mode         = useGameStore((s) => s.mode);
+  const difficulty   = useGameStore((s) => s.difficulty);
   const registerHit  = useGameStore((s) => s.registerHit);
   const registerMiss = useGameStore((s) => s.registerMiss);
   const cfg = MODE_CONFIG[mode] ?? MODE_CONFIG.gridshot;
+  const diffConfig = getDifficulty(difficulty);
 
   // Targets state: array of { id, position:[x,y,z], spawnTime, gridIdx }
   const [targets, setTargets] = useState([]);
@@ -120,7 +124,7 @@ const TargetManager = () => {
   // Keep ref in sync
   useEffect(() => { targetsRef.current = targets; }, [targets]);
 
-  const baseScale = mode === 'speed' ? 0.75 : 1.0;
+  const baseScale = (mode === 'speed' ? 0.75 : 1.0) * diffConfig.targetScale;
 
   // ── Spawn logic ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -128,6 +132,8 @@ const TargetManager = () => {
       setTargets([]);
       return;
     }
+
+    const spawnInterval = Math.round(cfg.interval * diffConfig.spawnMult);
 
     const spawnOne = () => {
       setTargets(prev => {
@@ -152,9 +158,9 @@ const TargetManager = () => {
     };
 
     spawnOne();
-    const id = setInterval(spawnOne, cfg.interval);
+    const id = setInterval(spawnOne, spawnInterval);
     return () => clearInterval(id);
-  }, [phase, mode, cfg.limit, cfg.interval]);
+  }, [phase, mode, difficulty, cfg.limit, cfg.interval, diffConfig.spawnMult]);
 
   // ── Shoot handler ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -205,7 +211,7 @@ const TargetManager = () => {
       }
     };
     return InputBus.on('shoot', handleShoot);
-  }, [camera, mode, registerHit, registerMiss]);
+  }, [camera, mode, difficulty, registerHit, registerMiss]);
 
   // Register/unregister mesh refs
   const setMeshRef = useCallback((id, ref) => {
@@ -218,7 +224,7 @@ const TargetManager = () => {
   return (
     <>
       {targets.map(t => (
-        <group key={t.id} position={t.position}>
+        <group key={t.id} position={t.position} scale={[baseScale, baseScale, baseScale]}>
           <mesh
             ref={(ref) => setMeshRef(t.id, ref)}
             geometry={_sphereGeo}
@@ -242,18 +248,22 @@ const _trackMesh = new THREE.Mesh(_trackGeo);
 
 const TrackingTarget = () => {
   const { camera } = useThree();
-  const phase    = useGameStore((s) => s.phase);
-  const addScore = useGameStore((s) => s.addScore);
-  const meshRef  = useRef();
-  const elapsed  = useRef(0);
+  const phase      = useGameStore((s) => s.phase);
+  const difficulty = useGameStore((s) => s.difficulty);
+  const addScore   = useGameStore((s) => s.addScore);
+  const meshRef    = useRef();
+  const elapsed    = useRef(0);
   const [isHit, setIsHit] = useState(false);
+  const diffConfig = getDifficulty(difficulty);
 
   useFrame((_, delta) => {
     if (phase !== 'playing' || !meshRef.current) return;
-    elapsed.current += delta;
+    elapsed.current += delta * diffConfig.speedMult;
     const pos = trackingPosition(elapsed.current);
     meshRef.current.position.copy(pos);
+    meshRef.current.scale.setScalar(diffConfig.targetScale);
     _trackMesh.position.copy(pos);
+    _trackMesh.scale.setScalar(diffConfig.targetScale);
     _trackMesh.updateMatrixWorld(true);
     const hit = shoot(camera, [_trackMesh]);
     setIsHit(!!hit);

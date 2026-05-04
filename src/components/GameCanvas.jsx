@@ -5,6 +5,7 @@ import { useInput } from '../input/InputContext';
 import useGameStore from '../store/gameStore';
 import { InputBus } from '../core/InputBus';
 import { IS_MOBILE, PIXEL_RATIO, FRAME_MS } from '../core/DeviceCapabilities';
+import { soundEngine } from '../core/SoundEngine';
 import Scene3D from './Scene3D';
 import TargetManager from './Targets';
 
@@ -99,6 +100,7 @@ const GameLogic = () => {
     if (inputRef.current.fire) {
       if (!lastFire.current) {
         lastFire.current = true;
+        soundEngine.playShoot();
         InputBus.emit('shoot');
       }
     } else {
