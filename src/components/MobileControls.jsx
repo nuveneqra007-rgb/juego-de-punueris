@@ -8,6 +8,10 @@ const MobileControls = () => {
   const hasMovedRef = useRef(false);
   const [visible, setVisible] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [adsActive, setAdsActive] = useState(false);
+
+  // ── Hook de gyro (DEBE estar al top level, nunca en JSX inline) ─────────────
+  const gyroEnabled = useGameStore((s) => s.gyroEnabled);
 
   // Detectar si es un dispositivo táctil
   useEffect(() => {
@@ -98,7 +102,6 @@ const MobileControls = () => {
   };
 
   // ── ADS button (toggle on tap) ──────────────────────────────────────────────
-  const [adsActive, setAdsActive] = useState(false);
   const handleADSToggle = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -266,11 +269,11 @@ const MobileControls = () => {
           width: 36,
           height: 36,
           borderRadius: 8,
-          background: useGameStore((s) => s.gyroEnabled) ? 'rgba(0, 212, 255, 0.35)' : 'rgba(11, 15, 26, 0.7)',
-          borderColor: useGameStore((s) => s.gyroEnabled) ? '#00d4ff' : 'rgba(0, 212, 255, 0.25)',
-          color: useGameStore((s) => s.gyroEnabled) ? '#fff' : 'rgba(0, 212, 255, 0.7)',
+          background: gyroEnabled ? 'rgba(0, 212, 255, 0.35)' : 'rgba(11, 15, 26, 0.7)',
+          borderColor: gyroEnabled ? '#00d4ff' : 'rgba(0, 212, 255, 0.25)',
+          color: gyroEnabled ? '#fff' : 'rgba(0, 212, 255, 0.7)',
           fontSize: 14,
-          boxShadow: useGameStore((s) => s.gyroEnabled) ? '0 0 10px rgba(0,212,255,0.4)' : 'none',
+          boxShadow: gyroEnabled ? '0 0 10px rgba(0,212,255,0.4)' : 'none',
         }}
       >
         🔄
