@@ -67,11 +67,7 @@ const AppInitializer = () => {
 // ─── ExitButton (volver al menú durante partida) ─────────────────────────────
 const ExitButton = () => (
   <button
-    onClick={() => {
-      if (document.pointerLockElement) document.exitPointerLock();
-      if (document.fullscreenElement) document.exitFullscreen?.();
-      useGameStore.setState({ phase: 'menu', isADS: false, isCrouching: false });
-    }}
+    onClick={() => useGameStore.getState().exitToMenu()}
     style={{
       position: 'absolute', top: 56, left: 12,
       width: 38, height: 38, borderRadius: 8,
@@ -88,6 +84,33 @@ const ExitButton = () => (
     onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(255,68,68,0.7)'; e.currentTarget.style.color = '#ff4444'; }}
     onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,68,68,0.35)'; e.currentTarget.style.color = 'rgba(255,68,68,0.85)'; }}
   >✕</button>
+);
+
+// ─── WebGL Context Lost Overlay ───────────────────────────────────────────────
+const WebGLFallback = () => (
+  <div style={{
+    position: 'fixed', inset: 0, zIndex: 9999,
+    background: 'rgba(8,10,18,0.95)',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    gap: 16, color: '#fff', fontFamily: 'Inter, system-ui, sans-serif',
+  }}>
+    <div style={{ fontSize: 48, marginBottom: 8 }}>⚠️</div>
+    <div style={{ fontSize: 18, fontWeight: 700, color: '#ffb800' }}>Contexto 3D Perdido</div>
+    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', maxWidth: 280, textAlign: 'center' }}>
+      El navegador liberó los recursos gráficos. Esto puede pasar con ahorro de energía o poca memoria.
+    </div>
+    <button
+      onClick={() => window.location.reload()}
+      style={{
+        marginTop: 12, padding: '10px 28px', borderRadius: 8,
+        background: 'linear-gradient(135deg, #00d4ff, #007aff)',
+        border: 'none', color: '#fff', fontSize: 14, fontWeight: 700,
+        cursor: 'pointer', touchAction: 'manipulation',
+      }}
+    >
+      REINICIAR
+    </button>
+  </div>
 );
 
 // ─── Datos de modos ───────────────────────────────────────────────────────────
@@ -504,7 +527,7 @@ const SummaryScreen = () => {
           className="btn-ghost"
           onClick={() => {
             soundEngine.playUIClick();
-            useGameStore.setState({ phase: 'menu' });
+            useGameStore.getState().exitToMenu();
           }}
         >
           Cambiar modo
@@ -517,7 +540,8 @@ const SummaryScreen = () => {
 // ─── App ──────────────────────────────────────────────────────────────────────
 const App = () => {
   const [showSettings, setShowSettings] = useState(false);
-  const phase = useGameStore((s) => s.phase);
+  const phase            = useGameStore((s) => s.phase);
+  const webglContextLost = useGameStore((s) => s.webglContextLost);
 
   return (
     <InputProvider>
@@ -533,6 +557,7 @@ const App = () => {
         {phase === 'menu'      && <MenuScreen />}
         {phase === 'countdown' && <Countdown />}
         {phase === 'summary'   && <SummaryScreen />}
+        {webglContextLost && <WebGLFallback />}
       </div>
     </InputProvider>
   );

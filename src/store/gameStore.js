@@ -54,6 +54,9 @@ const createGameSlice = (set, get) => ({
   isADS:     false,
   isCrouching: false,
 
+  // ── WebGL context tracking ───────────────────────────────────────────────
+  webglContextLost: false,
+
   /**
    * Inicia sesión → pasa a fase countdown (3-2-1-GO!)
    */
@@ -216,6 +219,29 @@ const createGameSlice = (set, get) => ({
   setGlitchActive: (v) => set({ glitchActive: v }),
   setBulletTimeActive: (v) => set({ bulletTimeActive: v }),
   setTunnelFov: (v) => set({ tunnelFov: v }),
+
+  // ── WebGL ──────────────────────────────────────────────────────────────────
+  setWebglContextLost: (v) => set({ webglContextLost: v }),
+
+  /**
+   * Salida limpia al menú — resetea TODO el estado de juego.
+   * Usar esto en vez de setState({ phase: 'menu' }) directamente.
+   */
+  exitToMenu: () => {
+    if (document.pointerLockElement) document.exitPointerLock();
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    set({
+      phase: 'menu',
+      score: 0, shots: 0, hits: 0, combo: 0, maxCombo: 0,
+      timeLeft: 30, totalReactionMs: 0, lastReactionMs: 0,
+      reactionTimes: [], hitTimeline: [], headshots: 0,
+      trackingDamageDealt: 0, trackingTargetsKilled: 0,
+      trackingTimeOnTarget: 0, trackingShotsFired: 0, trackingShotsHit: 0,
+      isADS: false, isCrouching: false,
+      isNewBest: false, rankPosition: -1, bestScore: null,
+      consecutiveMisses: 0, glitchActive: false, bulletTimeActive: false, tunnelFov: 0,
+    });
+  },
 });
 
 // ─── Slice de configuración ───────────────────────────────────────────────────

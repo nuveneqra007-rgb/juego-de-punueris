@@ -306,9 +306,10 @@ const GameCanvas = () => {
       resize={{ debounce: 0, scroll: false }}
       dpr={[1, IS_MOBILE ? 1.5 : 2]}
       gl={{
-        antialias:        !IS_MOBILE,
-        powerPreference:  'high-performance',
-        stencil:          false,
+        antialias:             !IS_MOBILE,
+        powerPreference:       'high-performance',
+        preserveDrawingBuffer: false,
+        stencil:               false,
         failIfMajorPerformanceCaveat: false,
       }}
       frameloop="always"
@@ -319,20 +320,32 @@ const GameCanvas = () => {
           gl.shadowMap.enabled = true;
           gl.shadowMap.type = THREE.PCFSoftShadowMap;
         }
-        // Recover from WebGL context loss (common on mobile)
+
+        // ── WebGL Context Loss / Restore Handling ──────────────────────────
         const canvas = gl.domElement;
+
         canvas.addEventListener('webglcontextlost', (e) => {
           e.preventDefault();
-          console.warn('[AimChamp] WebGL context lost, attempting recovery...');
+          console.warn('[AimChamp] WebGL context lost — showing fallback UI');
+          useGameStore.getState().setWebglContextLost(true);
         });
+
         canvas.addEventListener('webglcontextrestored', () => {
-          console.log('[AimChamp] WebGL context restored');
+          console.log('[AimChamp] WebGL context restored — re-initializing');
+          // Re-apply all GL state
           gl.setClearColor(new THREE.Color(0xb8bcc5));
           gl.setPixelRatio(PIXEL_RATIO);
-          // Forzar resize tras restaurar contexto — el canvas puede tener dimensiones stale
+          if (!IS_LOW_END) {
+            gl.shadowMap.enabled = true;
+            gl.shadowMap.type = THREE.PCFSoftShadowMap;
+          }
+          // Force a safe resize to fix any stale dimensions
           setTimeout(() => {
-            gl.setSize(window.innerWidth, window.innerHeight);
+            const w = Math.max(window.innerWidth, 1);
+            const h = Math.max(window.innerHeight, 1);
+            gl.setSize(w, h);
             window.dispatchEvent(new Event('resize-safe'));
+            useGameStore.getState().setWebglContextLost(false);
           }, 100);
         });
       }}
