@@ -31,6 +31,10 @@ const Countdown = () => {
       } else {
         clearInterval(timerRef.current);
         setShow(false);
+        // Forzar resize antes de entrar a playing — previene pantalla negra
+        // porque beginPlaying() se llama desde un setInterval, no de un evento
+        // de usuario, así que el navegador puede no haber estabilizado el viewport
+        window.dispatchEvent(new Event('resize-safe'));
         beginPlaying();
       }
     }, 800);

@@ -35,28 +35,68 @@ const FogSetup = () => {
 // ─── ResizeGuard ──────────────────────────────────────────────────────────────
 // Escucha el evento 'resize-safe' (emitido por MobileViewportFix tras debounce)
 // y re-aplica dimensiones seguras al renderer y la cámara de Three.js.
-// Esto previene que R3F calcule dimensiones erróneas (0px) durante la animación
-// de rotación o el show/hide de la barra de navegación.
+// Valida contra NaN/0 para prevenir matrices de proyección corruptas.
 const ResizeGuard = () => {
-  const { gl, camera } = useThree();
+  const { gl, camera, invalidate } = useThree();
 
   useEffect(() => {
-    const handleSafeResize = () => {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
+    const applySafeResize = () => {
+      const w = gl.domElement.clientWidth || window.innerWidth;
+      const h = gl.domElement.clientHeight || window.innerHeight;
 
-      // Protección contra dimensiones erróneas durante transiciones
-      if (width === 0 || height === 0) return;
+      // Rechazar dimensiones inválidas
+      if (w <= 0 || h <= 0) return;
 
-      camera.aspect = width / height;
+      const newAspect = w / h;
+      if (!Number.isFinite(newAspect)) return;
+
+      camera.aspect = newAspect;
       camera.updateProjectionMatrix();
-      gl.setSize(width, height);
+      gl.setSize(w, h);
+      gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      invalidate(); // Forzar un frame de renderizado
+    };
+
+    window.addEventListener('resize-safe', applySafeResize);
+    return () => window.removeEventListener('resize-safe', applySafeResize);
+  }, [gl, camera, invalidate]);
+
+  return null;
+};
+
+// ─── PhaseTransitionGuard ─────────────────────────────────────────────────────
+// Cada vez que la fase del juego cambia (menú → countdown → playing → summary),
+// fuerza un recalculo de dimensiones con múltiples intentos escalonados.
+// Esto cubre el caso donde el navegador aún no ha estabilizado el viewport
+// cuando beginPlaying() se ejecuta desde un setInterval (Countdown).
+const PhaseTransitionGuard = () => {
+  const { gl, camera } = useThree();
+  const phase = useGameStore((s) => s.phase);
+
+  useEffect(() => {
+    const forceResize = () => {
+      const w = Math.max(gl.domElement.clientWidth || window.innerWidth, 1);
+      const h = Math.max(gl.domElement.clientHeight || window.innerHeight, 1);
+      const aspect = w / h;
+
+      if (!Number.isFinite(aspect) || aspect <= 0) return;
+
+      camera.aspect = aspect;
+      camera.fov = camera.fov || DEFAULT_FOV; // Reparar FOV si es NaN
+      camera.updateProjectionMatrix();
+      gl.setSize(w, h);
       gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     };
 
-    window.addEventListener('resize-safe', handleSafeResize);
-    return () => window.removeEventListener('resize-safe', handleSafeResize);
-  }, [gl, camera]);
+    // Intentos escalonados: inmediato + 50ms + 150ms + 350ms
+    // para cubrir todos los delays del navegador móvil
+    forceResize();
+    const t1 = setTimeout(forceResize, 50);
+    const t2 = setTimeout(forceResize, 150);
+    const t3 = setTimeout(forceResize, 350);
+
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [phase, gl, camera]);
 
   return null;
 };
@@ -115,6 +155,21 @@ const GameLogic = () => {
 
   // ── Loop principal ────────────────────────────────────────────────────────
   useFrame((state, delta) => {
+    // ── Protección anti-NaN: reparar cámara corrupta cada frame ──────────
+    // Si R3F ResizeObserver disparó con dimensiones 0/0, camera.aspect = NaN
+    // y la matriz de proyección queda permanentemente corrupta.
+    const canvasW = gl.domElement.clientWidth || window.innerWidth;
+    const canvasH = gl.domElement.clientHeight || window.innerHeight;
+    if (!Number.isFinite(camera.aspect) || camera.aspect <= 0 || canvasW === 0 || canvasH === 0) {
+      const safeW = Math.max(canvasW, 1);
+      const safeH = Math.max(canvasH, 1);
+      camera.aspect = safeW / safeH;
+      camera.fov = DEFAULT_FOV;
+      camera.updateProjectionMatrix();
+      gl.setSize(safeW, safeH);
+      return; // Skip este frame, el siguiente renderizará correctamente
+    }
+
     if (phase !== 'playing') return;
 
     // FPS throttle en móvil
@@ -248,6 +303,8 @@ const GameCanvas = () => {
         style={canvasStyle}
       camera={{ fov: DEFAULT_FOV, near: 0.1, far: 400, position: [0, STAND_HEIGHT, 0] }}
       shadows={!IS_LOW_END}
+      resize={{ debounce: 0, scroll: false }}
+      dpr={[1, IS_MOBILE ? 1.5 : 2]}
       gl={{
         antialias:        !IS_MOBILE,
         powerPreference:  'high-performance',
@@ -282,6 +339,7 @@ const GameCanvas = () => {
     >
       <FogSetup />
       <ResizeGuard />
+      <PhaseTransitionGuard />
       <GameLogic />
       <MemoScene />
       <TargetManager />
