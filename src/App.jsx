@@ -13,6 +13,7 @@ import { DIFFICULTIES, DIFFICULTY_ORDER, getDifficulty } from './core/Difficulty
 import { soundEngine } from './core/SoundEngine';
 import { getBestScore } from './utils/storage';
 import { classifyReaction } from './core/ScoreEngine';
+import { IS_MOBILE } from './core/DeviceCapabilities';
 
 // ─── AppInitializer ───────────────────────────────────────────────────────────
 const AppInitializer = () => {
@@ -279,6 +280,19 @@ const MenuScreen = () => {
           className="btn-primary"
           onClick={() => {
             soundEngine.init();
+            // En móvil, entrar a fullscreen para eliminar la barra de navegación
+            if (IS_MOBILE && !document.fullscreenElement) {
+              const el = document.documentElement;
+              const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+              if (req) {
+                req.call(el).then(() => {
+                  // Esperar a que el fullscreen se estabilice antes de resize
+                  setTimeout(() => {
+                    window.dispatchEvent(new Event('resize-safe'));
+                  }, 300);
+                }).catch(() => { /* Fullscreen no disponible, continuar sin él */ });
+              }
+            }
             useGameStore.getState().startSession(duration, selectedMode, difficulty);
           }}
         >

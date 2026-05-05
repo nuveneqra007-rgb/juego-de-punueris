@@ -32,6 +32,35 @@ const FogSetup = () => {
   return null;
 };
 
+// ─── ResizeGuard ──────────────────────────────────────────────────────────────
+// Escucha el evento 'resize-safe' (emitido por MobileViewportFix tras debounce)
+// y re-aplica dimensiones seguras al renderer y la cámara de Three.js.
+// Esto previene que R3F calcule dimensiones erróneas (0px) durante la animación
+// de rotación o el show/hide de la barra de navegación.
+const ResizeGuard = () => {
+  const { gl, camera } = useThree();
+
+  useEffect(() => {
+    const handleSafeResize = () => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+
+      // Protección contra dimensiones erróneas durante transiciones
+      if (width === 0 || height === 0) return;
+
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      gl.setSize(width, height);
+      gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    };
+
+    window.addEventListener('resize-safe', handleSafeResize);
+    return () => window.removeEventListener('resize-safe', handleSafeResize);
+  }, [gl, camera]);
+
+  return null;
+};
+
 // ─── GameLogic ────────────────────────────────────────────────────────────────
 const GameLogic = () => {
   const inputRef  = useInput();
@@ -243,10 +272,16 @@ const GameCanvas = () => {
           console.log('[AimChamp] WebGL context restored');
           gl.setClearColor(new THREE.Color(0xb8bcc5));
           gl.setPixelRatio(PIXEL_RATIO);
+          // Forzar resize tras restaurar contexto — el canvas puede tener dimensiones stale
+          setTimeout(() => {
+            gl.setSize(window.innerWidth, window.innerHeight);
+            window.dispatchEvent(new Event('resize-safe'));
+          }, 100);
         });
       }}
     >
       <FogSetup />
+      <ResizeGuard />
       <GameLogic />
       <MemoScene />
       <TargetManager />

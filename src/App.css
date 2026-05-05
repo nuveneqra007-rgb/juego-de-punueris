@@ -45,6 +45,7 @@
 html, body, #root {
   width: 100%;
   height: 100%;
+  height: 100dvh;              /* Dynamic viewport height — ignora barra de navegación */
   overflow: hidden;
   background: var(--c-bg);
   color: var(--c-text);
@@ -53,10 +54,20 @@ html, body, #root {
   -webkit-user-select: none;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
+  position: fixed;              /* Previene bounce scroll que rompe el canvas */
+  top: 0;
+  left: 0;
+  overscroll-behavior: none;    /* Bloquea pull-to-refresh */
+}
+
+body {
+  background-color: #000;       /* Fondo negro para evitar flashes blancos al rotar */
 }
 
 canvas {
   display: block;
+  width: 100% !important;       /* Fuerza al canvas de R3F a ocupar todo el viewport */
+  height: 100% !important;
   touch-action: none;
 }
 
@@ -458,7 +469,7 @@ input[type="range"]::-moz-range-thumb {
 @media (max-height: 500px) {
   /* Compresión del menú principal */
   .menu-screen {
-    max-height: 100vh;
+    max-height: 100%;
     overflow-y: auto;
     padding: 10px 16px;
   }
@@ -479,7 +490,7 @@ input[type="range"]::-moz-range-thumb {
   /* Compresión de la pantalla de resumen */
   .summary-screen {
     padding: 16px 24px;
-    max-height: 95vh;
+    max-height: 100%;
     overflow-y: auto;
   }
   .summary-screen h2 { font-size: 18px; margin-bottom: 4px; }
@@ -490,7 +501,7 @@ input[type="range"]::-moz-range-thumb {
   /* Compresión de los Ajustes */
   .settings-card {
     padding: 16px 24px;
-    max-height: 95vh;
+    max-height: 100%;
     overflow-y: auto;
   }
   .settings-card h2 { font-size: 16px; margin-bottom: 12px; }
